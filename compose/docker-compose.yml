@@ -1,0 +1,87 @@
+version: "3.9"
+
+networks:
+  zta_net:
+    driver: bridge
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION}
+    container_name: zta_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - xpack.security.enabled=true
+      - xpack.security.transport.ssl.enabled=false
+    ports:
+      - "${ELASTIC_PORT}:9200"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    mem_limit: 2g
+    networks:
+      - zta_net
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${ELASTIC_VERSION}
+    container_name: zta_kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=${KIBANA_SYSTEM_PASSWORD}
+      - ELASTICSEARCH_SSL_VERIFICATIONMODE=none
+    ports:
+      - "${KIBANA_PORT}:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - zta_net
+
+  toxiproxy:
+    image: shopify/toxiproxy:latest
+    container_name: zta_toxiproxy
+    ports:
+      - "8474:8474" # admin API
+      - "8666:8666" # example proxy port
+    networks:
+      - zta_net
+
+  validation:
+    build: ../services/validation
+    container_name: zta_validation
+    environment:
+      - DB_DSN=${DB_DSN}
+      - ES_URL=http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
+    ports:
+      - "8001:8000"
+    depends_on:
+      - elasticsearch
+    networks:
+      - zta_net
+
+  trust:
+    build: ../services/trust
+    container_name: zta_trust
+    environment:
+      - DB_DSN=${DB_DSN}
+      - ES_URL=http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
+    ports:
+      - "8002:8000"
+    depends_on:
+      - elasticsearch
+      - validation
+    networks:
+      - zta_net
+
+  gateway:
+    build: ../services/gateway
+    container_name: zta_gateway
+    environment:
+      - TRUST_URL=http://trust:8000
+    ports:
+      - "8003:8000"
+    depends_on:
+      - trust
+    networks:
+      - zta_net
