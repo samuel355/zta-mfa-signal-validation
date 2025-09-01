@@ -51,7 +51,7 @@ services:
     build: ../services/validation
     container_name: zta_validation
     environment:
-      DB_DSN: postgresql+psycopg://postgres.ntaujhnmqblzieifvzor:MoneyInTheBank@aws-1-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require
+      DB_DSN: ${DB_DSN}
       ES_URL: http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
     dns:
       - 8.8.8.8
@@ -67,7 +67,7 @@ services:
     build: ../services/trust
     container_name: zta_trust
     environment:
-      DB_DSN: postgresql+psycopg://postgres.ntaujhnmqblzieifvzor:MoneyInTheBank@aws-1-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require
+      DB_DSN: ${DB_DSN}
       ES_URL: http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
     dns:
       - 8.8.8.8
@@ -85,6 +85,7 @@ services:
     container_name: zta_gateway
     environment:
       TRUST_URL: http://trust:8000
+      DB_DSN: ${DB_DSN}
     ports:
       - "8003:8000"
     depends_on:
