@@ -42,8 +42,8 @@ services:
     image: shopify/toxiproxy:latest
     container_name: zta_toxiproxy
     ports:
-      - "8474:8474"   # admin API
-      - "8666:8666"   # example proxy port
+      - "8474:8474" # admin API
+      - "8666:8666" # example proxy port
     networks:
       - zta_net
 
@@ -86,6 +86,9 @@ services:
     environment:
       TRUST_URL: http://trust:8000
       DB_DSN: ${DB_DSN}
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     ports:
       - "8003:8000"
     depends_on:
