@@ -95,3 +95,21 @@ services:
       - trust
     networks:
       - zta_net
+      
+  siem:
+    build: ../services/siem
+    container_name: zta_siem
+    environment:
+      DB_DSN: ${DB_DSN}
+      TRUST_URL: http://trust:8000
+      SIEM_URL:  http://siem:8000
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    ports:
+      - "8010:8000"
+    depends_on:
+      - validation
+      - trust
+    networks:
+      - zta_net

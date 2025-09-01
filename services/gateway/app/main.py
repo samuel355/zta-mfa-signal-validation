@@ -2,7 +2,7 @@ import os, json, socket, urllib.parse
 import httpx
 import pyotp
 from typing import Optional, Dict, Any
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from sqlalchemy import create_engine, text
@@ -11,6 +11,7 @@ from sqlalchemy.engine import Engine
 api = FastAPI(title="Gateway Service", version="0.2")
 
 TRUST_URL = os.getenv("TRUST_URL", "http://trust:8000")
+SIEM_URL = os.getenv("SIEM_URL", "http://siem:8000")
 
 # -------------------- DB engine (lazy with psycopg) --------------------
 _engine: Optional[Engine] = None
@@ -99,32 +100,63 @@ def dnscheck():
 # Demo TOTP secret for "step_up" – in a real system this would send an OTP to user.
 totp = pyotp.TOTP("JBSWY3DPEHPK3PXP")  # demo only
 
+# at top of file (ensure these exist)
+
 @api.post("/decision")
 def decision(payload: ValidateAndDecide):
-    # Call trust /score
-    data = {
-        "vector": payload.validated.get("vector", {}),
-        "weights": payload.validated.get("weights", {}),
-        "siem": payload.siem,
-    }
-    with httpx.Client(timeout=5) as c:
-        r = c.post(f"{TRUST_URL}/score", json=data)
-        r.raise_for_status()
-        out = r.json()  # {risk, decision, ...}
+    # --- 1) Pull validated vector/weights + session_id if present ---
+    validated = payload.validated or {}
+    vector    = validated.get("vector", {}) or {}
+    weights   = validated.get("weights", {}) or {}
 
-    session_id = f"sess-{os.urandom(4).hex()}"
-    decision = out.get("decision", "allow")
-    risk = float(out.get("risk", 0.0))
+    # Try common places to find a session id; fallback to a generated one
+    session_id = (
+        vector.get("session_id")
+        or validated.get("session_id")
+        or (isinstance(vector.get("auth"), dict) and vector["auth"].get("session_id"))
+        or f"sess-{os.urandom(4).hex()}"
+    )
+
+    # --- 2) Query SIEM connector for live severity counts for this session ---
+    siem_counts = {"high": 0, "medium": 0}  # defaults if SIEM is down or empty
+    try:
+        with httpx.Client(timeout=3) as c:
+            resp = c.get(f"{SIEM_URL}/aggregate", params={"session_id": session_id, "minutes": 15})
+            resp.raise_for_status()
+            counts = (resp.json() or {}).get("counts") or {}
+            # trust/score currently expects only high & medium
+            siem_counts["high"]   = int(counts.get("high", 0) or 0)
+            siem_counts["medium"] = int(counts.get("medium", 0) or 0)
+    except Exception:
+        # keep defaults; do not fail the decision path because of SIEM
+        pass
+
+    # --- 3) Call trust /score with live SIEM signals ---
+    score_req = {
+        "vector":  vector,
+        "weights": weights,
+        "siem":    {"high": siem_counts["high"], "medium": siem_counts["medium"]},
+    }
+    try:
+        with httpx.Client(timeout=5) as c:
+            r = c.post(f"{TRUST_URL}/score", json=score_req)
+            r.raise_for_status()
+            out = r.json()  # {risk, decision, components?, persistence?}
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"trust/score error: {e!s}")
+
+    decision   = out.get("decision", "allow")
+    risk       = float(out.get("risk", 0.0))
     enforcement = "ALLOW"
-    detail = {}
+    detail: dict[str, Any] = {"siem_counts": siem_counts}
 
     if decision == "step_up":
         enforcement = "MFA_STEP_UP"
-        detail = {"otp_demo": totp.now()}
+        detail["otp_demo"] = totp.now()
     elif decision == "deny":
         enforcement = "DENY"
 
-    # Persist MFA event
+    # --- 4) Persist MFA event to zta.mfa_events with SAME session_id ---
     persistence = {"ok": False}
     eng = get_engine()
     if eng is not None:
@@ -152,9 +184,8 @@ def decision(payload: ValidateAndDecide):
         except Exception as ex:
             persistence = {"ok": False, "error": str(ex)}
 
-    # Response body
-    resp = {"enforcement": enforcement, "risk": risk}
-    if detail:
-        resp.update(detail)
-    resp["persistence"] = persistence
+    # --- 5) Response (includes OTP for demo if step-up) ---
+    resp = {"session_id": session_id, "enforcement": enforcement, "risk": risk, "persistence": persistence}
+    if "otp_demo" in detail:
+        resp["otp_demo"] = detail["otp_demo"]
     return resp
