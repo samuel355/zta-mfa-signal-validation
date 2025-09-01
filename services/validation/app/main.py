@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import Dict, Any, Optional
 import os, socket, urllib.parse
 import json
+from app.enrichment import enrich_all, DATA_STATUS
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
@@ -82,7 +83,7 @@ def cross_checks(s: dict) -> dict:
     return {"ok": True, "detail": {}}
 
 def enrichment(s: dict) -> dict:
-    return {"ok": True, "detail": {}}
+    return enrich_all(s)
 
 def compute_weights(s: dict, q: dict, x: dict, e: dict) -> dict:
     return {"ip_geo": 0.25, "gps": 0.30, "wifi_bssid": 0.20, "device_posture": 0.15, "tls_fp": 0.10}
@@ -91,6 +92,10 @@ def aggregate(s: dict, w: dict) -> dict:
     return {"vector": s, "weights": w}
 
 # ---------- Endpoints ----------
+@api.get("/datasets")
+def datasets():
+    return {"loaded": DATA_STATUS}
+    
 @api.get("/health")
 def health():
     return {"status": "ok"}
