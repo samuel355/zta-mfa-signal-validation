@@ -218,6 +218,7 @@ services:
       ES_DEFAULT_SEVERITY: medium # low|medium|high
       ES_POLL_SECONDS: "20" # how often to poll
       ES_LOOKBACK: "2m"
+      ES_MIRROR_INDEX: "siem-alerts"
     dns:
       - 8.8.8.8
       - 1.1.1.1
