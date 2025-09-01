@@ -1,9 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
-import math, os, urllib.parse, socket
-import json
-
+import math, os, urllib.parse, socket, json
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
@@ -18,6 +16,9 @@ class ValidatedPayload(BaseModel):
 # ---------- DB engine (lazy) ----------
 _engine: Optional[Engine] = None
 
+# --- DB engine (lazy) ---
+_engine: Optional[Engine] = None
+
 def _mask_dsn(dsn: str) -> str:
     try:
         at = dsn.find('@')
@@ -25,24 +26,29 @@ def _mask_dsn(dsn: str) -> str:
             head, tail = dsn.split('://', 1)
             creds, rest = tail.split('@', 1)
             if ':' in creds:
-                user, _pwd = creds.split(':', 1)
+                user, _ = creds.split(':', 1)
                 return f"{head}://{user}:***@{rest}"
     except Exception:
         pass
     return dsn
 
 def get_engine() -> Optional[Engine]:
+    """Create a psycopg (v3) engine; enforce sslmode=require."""
     global _engine
     if _engine is not None:
         return _engine
 
-    dsn = os.getenv("DB_DSN", "").strip()      # <-- READ THE ENV VAR *DB_DSN*
+    dsn = os.getenv("DB_DSN", "").strip()
     if not dsn:
         print("[DB] DB_DSN missing; skipping persistence")
         return None
 
-    if dsn.startswith("postgres://"):
-        dsn = "postgresql://" + dsn[len("postgres://"):]
+    # Force psycopg v3 driver
+    if dsn.startswith("postgresql://"):
+        dsn = "postgresql+psycopg://" + dsn[len("postgresql://"):]
+    elif dsn.startswith("postgres://"):
+        dsn = "postgresql+psycopg://" + dsn[len("postgres://"):]
+
     if "sslmode=" not in dsn:
         dsn += ("&" if "?" in dsn else "?") + "sslmode=require"
 
@@ -50,12 +56,11 @@ def get_engine() -> Optional[Engine]:
         _engine = create_engine(dsn, pool_pre_ping=True, future=True)
         with _engine.connect() as conn:
             conn.execute(text("select 1"))
-        print(f"[DB] Engine created OK for { _mask_dsn(dsn) }")
+        print(f"[DB] Engine created OK for {_mask_dsn(dsn)}")
     except Exception as e:
-        print(f"[DB] Failed to create engine for { _mask_dsn(dsn) }: {e}")
+        print(f"[DB] Failed to create engine for {_mask_dsn(dsn)}: {e}")
         _engine = None
     return _engine
-
 # ---------- Utils ----------
 def sigmoid(x: float) -> float:
     return 1.0 / (1.0 + math.exp(-x))
@@ -86,7 +91,7 @@ def dnscheck():
         parsed = urllib.parse.urlparse(dsn.replace("postgresql+psycopg", "postgresql"))
         host = parsed.hostname
         if host is None:
-          return {'ok': False, 'error': 'Invalid hostname'}
+            return {'ok': False, 'error': 'Invalid hostname'}
         port = parsed.port or 5432
         ip = socket.gethostbyname(host)
         s = socket.create_connection((ip, port), timeout=5)
@@ -94,8 +99,7 @@ def dnscheck():
         return {"ok": True, "host": host, "ip": ip, "port": port}
     except Exception as e:
         return {"ok": False, "error": str(e)}
-        
-        
+
 @api.post("/score")
 def score(payload: ValidatedPayload):
     w = payload.weights or {}
@@ -115,23 +119,25 @@ def score(payload: ValidatedPayload):
 
     components = {"base": base, "siem_term": siem_term}
 
+    # -------- Persist (safe & time-bounded) --------
     persistence = {"ok": False}
     eng = get_engine()
     if eng is not None:
         try:
-            params = {
-                "session_id": f"sess-{os.urandom(4).hex()}",
-                "risk": r,
-                "decision": decision,
-                "components": json.dumps(components),
-            }
             with eng.begin() as conn:
+                # Belt-and-suspenders: per-transaction timeout too
+                conn.execute(text("SET LOCAL statement_timeout = '3s'"))
                 conn.execute(
                     text("""
                         insert into zta.trust_decisions (session_id, risk, decision, components)
                         values (:session_id, :risk, :decision, cast(:components as jsonb))
                     """),
-                    params
+                    {
+                        "session_id": f"sess-{os.urandom(4).hex()}",
+                        "risk": r,
+                        "decision": decision,
+                        "components": json.dumps(components),
+                    }
                 )
             persistence = {"ok": True}
         except Exception as ex:

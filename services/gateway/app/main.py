@@ -17,7 +17,9 @@ SIEM_URL = os.getenv("SIEM_URL", "http://siem:8000")
 _engine: Optional[Engine] = None
 
 def index_to_es(session_id, enforcement, risk, decision):
-    es_url = os.getenv("ES_URL", "http://elastic:Elastic_ChangeMe@elasticsearch:9200")
+    es_url = os.getenv("ES_URL")
+    if not es_url:
+        raise RuntimeError("ES_URL environment variable is not set")
     doc = {
         "@timestamp": dt.datetime.utcnow().isoformat(),
         "session_id": session_id,
@@ -31,6 +33,9 @@ def index_to_es(session_id, enforcement, risk, decision):
     except Exception as e:
         print(f"[ES_INDEX] failed: {e}")
         
+# --- DB engine (lazy) ---
+_engine: Optional[Engine] = None
+
 def _mask_dsn(dsn: str) -> str:
     try:
         at = dsn.find('@')
@@ -45,6 +50,7 @@ def _mask_dsn(dsn: str) -> str:
     return dsn
 
 def get_engine() -> Optional[Engine]:
+    """Create a psycopg (v3) engine; enforce sslmode=require."""
     global _engine
     if _engine is not None:
         return _engine
@@ -54,6 +60,7 @@ def get_engine() -> Optional[Engine]:
         print("[DB] DB_DSN missing; skipping persistence")
         return None
 
+    # Force psycopg v3 driver
     if dsn.startswith("postgresql://"):
         dsn = "postgresql+psycopg://" + dsn[len("postgresql://"):]
     elif dsn.startswith("postgres://"):
@@ -66,12 +73,11 @@ def get_engine() -> Optional[Engine]:
         _engine = create_engine(dsn, pool_pre_ping=True, future=True)
         with _engine.connect() as conn:
             conn.execute(text("select 1"))
-        print(f"[DB] Engine created OK for { _mask_dsn(dsn) }")
+        print(f"[DB] Engine created OK for {_mask_dsn(dsn)}")
     except Exception as e:
-        print(f"[DB] Failed to create engine for { _mask_dsn(dsn) }: {e}")
+        print(f"[DB] Failed to create engine for {_mask_dsn(dsn)}: {e}")
         _engine = None
     return _engine
-
 # -------------------- Models --------------------
 class ValidateAndDecide(BaseModel):
     validated: Dict[str, Any]

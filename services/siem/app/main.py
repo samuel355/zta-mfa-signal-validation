@@ -9,7 +9,9 @@ import httpx
 api = FastAPI(title="SIEM Connector", version="0.4")
 
 # ---- DB engine ----
+# --- DB engine (lazy) ---
 _engine: Optional[Engine] = None
+
 def _mask_dsn(dsn: str) -> str:
     try:
         at = dsn.find('@')
@@ -24,29 +26,34 @@ def _mask_dsn(dsn: str) -> str:
     return dsn
 
 def get_engine() -> Optional[Engine]:
+    """Create a psycopg (v3) engine; enforce sslmode=require."""
     global _engine
     if _engine is not None:
         return _engine
+
     dsn = os.getenv("DB_DSN", "").strip()
     if not dsn:
-        print("[DB] missing DB_DSN"); return None
-    # normalize scheme for SQLAlchemy 2 + psycopg3
+        print("[DB] DB_DSN missing; skipping persistence")
+        return None
+
+    # Force psycopg v3 driver
     if dsn.startswith("postgresql://"):
         dsn = "postgresql+psycopg://" + dsn[len("postgresql://"):]
     elif dsn.startswith("postgres://"):
         dsn = "postgresql+psycopg://" + dsn[len("postgres://"):]
+
     if "sslmode=" not in dsn:
         dsn += ("&" if "?" in dsn else "?") + "sslmode=require"
+
     try:
         _engine = create_engine(dsn, pool_pre_ping=True, future=True)
-        with _engine.connect() as c:
-            c.execute(text("select 1"))
-        print(f"[DB] Engine OK for {_mask_dsn(dsn)}")
+        with _engine.connect() as conn:
+            conn.execute(text("select 1"))
+        print(f"[DB] Engine created OK for {_mask_dsn(dsn)}")
     except Exception as e:
-        print(f"[DB] Engine FAIL: {e}")
+        print(f"[DB] Failed to create engine for {_mask_dsn(dsn)}: {e}")
         _engine = None
     return _engine
-
 # ---- Models / normalizers ----
 STRIDE_ALLOWED = {
     "spoofing": "Spoofing",

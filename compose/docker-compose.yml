@@ -52,7 +52,15 @@ services:
     build: ../services/validation
     container_name: zta_validation
     command:
-      ["uvicorn", "app.main:api", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+      [
+        "uvicorn",
+        "app.main:api",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+      ]
     environment:
       DB_DSN: ${DB_DSN}
       ES_URL: http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
@@ -86,7 +94,15 @@ services:
     build: ../services/trust
     container_name: zta_trust
     command:
-      ["uvicorn", "app.main:api", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+      [
+        "uvicorn",
+        "app.main:api",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+      ]
     environment:
       DB_DSN: ${DB_DSN}
       ES_URL: http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
@@ -114,26 +130,49 @@ services:
           path: ../services/trust/requirements.txt
         - action: rebuild
           path: ../services/trust/Dockerfile
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >
+          python -c "import urllib.request,sys;
+          sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).getcode()==200
+          else sys.exit(1)"
+      interval: 10s
+      timeout: 3s
+      start_period: 10s
+      retries: 5
 
   gateway:
     build: ../services/gateway
     container_name: zta_gateway
     command:
-      ["uvicorn", "app.main:api", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+      [
+        "uvicorn",
+        "app.main:api",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+      ]
     environment:
       TRUST_URL: http://trust:8000
+      TRUST_TIMEOUT_SECS: "10"
       DB_DSN: ${DB_DSN}
       SIEM_URL: http://siem:8000
       ES_URL: http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
-      TOTP_SECRET: JBSWY3DPEHPK3PXP   # (demo, optional)
+      TOTP_SECRET: JBSWY3DPEHPK3PXP # (demo, optional)
     dns:
       - 8.8.8.8
       - 1.1.1.1
     ports:
       - "8003:8000"
     depends_on:
-      - trust
-      - siem
+      trust:
+        condition: service_healthy
+      siem:
+        condition: service_started
+
     networks:
       - zta_net
     develop:
@@ -154,20 +193,29 @@ services:
   siem:
     build: ../services/siem
     container_name: zta_siem
-    command: ["uvicorn", "app.main:api", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command:
+      [
+        "uvicorn",
+        "app.main:api",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+      ]
     environment:
       DB_DSN: ${DB_DSN}
       TRUST_URL: http://trust:8000
       SIEM_URL: http://siem:8000
-# --- Elasticsearch poller config ---
-      ES_URL: http://elastic:Elastic_ChangeMe@elasticsearch:9200
-      ES_INDEX: logs-*,filebeat-*,thesis-*      # comma-separated index patterns
-      ES_KQL: message:"auth_failure"            # simple query string
-      ES_SESSION_FIELD: user.id                 # fallbacks to user.name, then "sess-unknown"
-      ES_DEFAULT_STRIDE: Tampering              # Spoofing|Tampering|Repudiation|InformationDisclosure|DoS|EoP
-      ES_DEFAULT_SEVERITY: medium               # low|medium|high
-      ES_POLL_SECONDS: "20"                     # how often to poll
-      ES_LOOKBACK: "2m"      
+      # --- Elasticsearch poller config ---
+      ES_URL: http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
+      ES_INDEX: logs-*,filebeat-*,thesis-* # comma-separated index patterns
+      ES_KQL: message:"auth_failure" # simple query string
+      ES_SESSION_FIELD: user.id # fallbacks to user.name, then "sess-unknown"
+      ES_DEFAULT_STRIDE: Tampering # Spoofing|Tampering|Repudiation|InformationDisclosure|DoS|EoP
+      ES_DEFAULT_SEVERITY: medium # low|medium|high
+      ES_POLL_SECONDS: "20" # how often to poll
+      ES_LOOKBACK: "2m"
     dns:
       - 8.8.8.8
       - 1.1.1.1
