@@ -52,7 +52,7 @@ services:
     build: ../services/validation
     container_name: zta_validation
     command:
-      ["uvicorn", "main:api", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+      ["uvicorn", "app.main:api", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     environment:
       DB_DSN: ${DB_DSN}
       ES_URL: http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
@@ -86,7 +86,7 @@ services:
     build: ../services/trust
     container_name: zta_trust
     command:
-      ["uvicorn", "main:api", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+      ["uvicorn", "app.main:api", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     environment:
       DB_DSN: ${DB_DSN}
       ES_URL: http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
@@ -119,10 +119,13 @@ services:
     build: ../services/gateway
     container_name: zta_gateway
     command:
-      ["uvicorn", "main:api", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+      ["uvicorn", "app.main:api", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     environment:
       TRUST_URL: http://trust:8000
       DB_DSN: ${DB_DSN}
+      SIEM_URL: http://siem:8000
+      ES_URL: http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
+      TOTP_SECRET: JBSWY3DPEHPK3PXP   # (demo, optional)
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -130,6 +133,7 @@ services:
       - "8003:8000"
     depends_on:
       - trust
+      - siem
     networks:
       - zta_net
     develop:

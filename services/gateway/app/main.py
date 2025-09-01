@@ -1,4 +1,4 @@
-import os, json, socket, urllib.parse
+import os, json, socket, urllib.parse, datetime as dt
 import httpx
 import pyotp
 from typing import Optional, Dict, Any
@@ -16,6 +16,21 @@ SIEM_URL = os.getenv("SIEM_URL", "http://siem:8000")
 # -------------------- DB engine (lazy with psycopg) --------------------
 _engine: Optional[Engine] = None
 
+def index_to_es(session_id, enforcement, risk, decision):
+    es_url = os.getenv("ES_URL", "http://elastic:Elastic_ChangeMe@elasticsearch:9200")
+    doc = {
+        "@timestamp": dt.datetime.utcnow().isoformat(),
+        "session_id": session_id,
+        "risk": risk,
+        "decision": decision,
+        "enforcement": enforcement
+    }
+    try:
+        with httpx.Client(timeout=3) as c:
+            c.post(f"{es_url}/mfa-events/_doc", json=doc)
+    except Exception as e:
+        print(f"[ES_INDEX] failed: {e}")
+        
 def _mask_dsn(dsn: str) -> str:
     try:
         at = dsn.find('@')
@@ -99,7 +114,6 @@ def dnscheck():
 # -------------------- Decision endpoint --------------------
 # Demo TOTP secret for "step_up" – in a real system this would send an OTP to user.
 totp = pyotp.TOTP("JBSWY3DPEHPK3PXP")  # demo only
-
 # at top of file (ensure these exist)
 
 @api.post("/decision")
@@ -146,7 +160,8 @@ def decision(payload: ValidateAndDecide):
         raise HTTPException(status_code=502, detail=f"trust/score error: {e!s}")
 
     decision   = out.get("decision", "allow")
-    risk       = float(out.get("risk", 0.0))
+    risk_raw       = float(out.get("risk", 0.0))
+    risk = round(risk_raw + 1e-10, 2)
     enforcement = "ALLOW"
     detail: dict[str, Any] = {"siem_counts": siem_counts}
 
@@ -183,6 +198,8 @@ def decision(payload: ValidateAndDecide):
             persistence = {"ok": True}
         except Exception as ex:
             persistence = {"ok": False, "error": str(ex)}
+    
+    index_to_es(session_id, enforcement, risk, decision)
 
     # --- 5) Response (includes OTP for demo if step-up) ---
     resp = {"session_id": session_id, "enforcement": enforcement, "risk": risk, "persistence": persistence}
