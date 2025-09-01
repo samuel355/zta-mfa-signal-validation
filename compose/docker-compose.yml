@@ -50,6 +50,8 @@ services:
   validation:
     build: ../services/validation
     container_name: zta_validation
+    command:
+      ["uvicorn", "main:api", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     environment:
       DB_DSN: ${DB_DSN}
       ES_URL: http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
@@ -62,10 +64,28 @@ services:
       - elasticsearch
     networks:
       - zta_net
+    develop:
+      watch:
+        # Sync source code into the running container
+        - action: sync
+          path: ../services/validation/app
+          target: /app
+          ignore:
+            - __pycache__/
+            - "*.pyc"
+            - ".venv/"
+            - ".git/"
+        # Rebuild the image if deps or Dockerfile change
+        - action: rebuild
+          path: ../services/validation/requirements.txt
+        - action: rebuild
+          path: ../services/validation/Dockerfile
 
   trust:
     build: ../services/trust
     container_name: zta_trust
+    command:
+      ["uvicorn", "main:api", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     environment:
       DB_DSN: ${DB_DSN}
       ES_URL: http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
@@ -79,10 +99,26 @@ services:
       - validation
     networks:
       - zta_net
+    develop:
+      watch:
+        - action: sync
+          path: ../services/trust/app
+          target: /app
+          ignore:
+            - __pycache__/
+            - "*.pyc"
+            - ".venv/"
+            - ".git/"
+        - action: rebuild
+          path: ../services/trust/requirements.txt
+        - action: rebuild
+          path: ../services/trust/Dockerfile
 
   gateway:
     build: ../services/gateway
     container_name: zta_gateway
+    command:
+      ["uvicorn", "main:api", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     environment:
       TRUST_URL: http://trust:8000
       DB_DSN: ${DB_DSN}
@@ -95,14 +131,30 @@ services:
       - trust
     networks:
       - zta_net
-      
+    develop:
+      watch:
+        - action: sync
+          path: ../services/gateway/app
+          target: /app
+          ignore:
+            - __pycache__/
+            - "*.pyc"
+            - ".venv/"
+            - ".git/"
+        - action: rebuild
+          path: ../services/gateway/requirements.txt
+        - action: rebuild
+          path: ../services/gateway/Dockerfile
+
   siem:
     build: ../services/siem
     container_name: zta_siem
+    command:
+      ["uvicorn", "main:api", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     environment:
       DB_DSN: ${DB_DSN}
       TRUST_URL: http://trust:8000
-      SIEM_URL:  http://siem:8000
+      SIEM_URL: http://siem:8000
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -113,3 +165,17 @@ services:
       - trust
     networks:
       - zta_net
+    develop:
+      watch:
+        - action: sync
+          path: ../services/siem/app
+          target: /app
+          ignore:
+            - __pycache__/
+            - "*.pyc"
+            - ".venv/"
+            - ".git/"
+        - action: rebuild
+          path: ../services/siem/requirements.txt
+        - action: rebuild
+          path: ../services/siem/Dockerfile
