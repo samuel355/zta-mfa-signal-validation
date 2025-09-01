@@ -31,6 +31,7 @@ services:
       - ELASTICSEARCH_USERNAME=kibana_system
       - ELASTICSEARCH_PASSWORD=${KIBANA_SYSTEM_PASSWORD}
       - ELASTICSEARCH_SSL_VERIFICATIONMODE=none
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY="h6z2mT9JNiygeyXj4IRgNreJh0uLHyBXedJnwDZ6/Qg="
     ports:
       - "${KIBANA_PORT}:5601"
     depends_on:
@@ -149,12 +150,20 @@ services:
   siem:
     build: ../services/siem
     container_name: zta_siem
-    command:
-      ["uvicorn", "main:api", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["uvicorn", "app.main:api", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     environment:
       DB_DSN: ${DB_DSN}
       TRUST_URL: http://trust:8000
       SIEM_URL: http://siem:8000
+# --- Elasticsearch poller config ---
+      ES_URL: http://elastic:Elastic_ChangeMe@elasticsearch:9200
+      ES_INDEX: logs-*,filebeat-*,thesis-*      # comma-separated index patterns
+      ES_KQL: message:"auth_failure"            # simple query string
+      ES_SESSION_FIELD: user.id                 # fallbacks to user.name, then "sess-unknown"
+      ES_DEFAULT_STRIDE: Tampering              # Spoofing|Tampering|Repudiation|InformationDisclosure|DoS|EoP
+      ES_DEFAULT_SEVERITY: medium               # low|medium|high
+      ES_POLL_SECONDS: "20"                     # how often to poll
+      ES_LOOKBACK: "2m"      
     dns:
       - 8.8.8.8
       - 1.1.1.1
