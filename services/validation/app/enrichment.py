@@ -1,27 +1,22 @@
 # services/validation/app/enrichment.py
 from __future__ import annotations
-
-import os, csv, json
+import os, csv
 from typing import Dict, Any
 
-# ---------- File locations (can be overridden via env) ----------
 PATH_GEOIP = os.getenv("PATH_GEOIP", "/data/geolite2/GeoLite2-City.mmdb")
 PATH_WIFI  = os.getenv("PATH_WIFI",  "/data/wifi/wigle_sample.csv")
 PATH_TLS   = os.getenv("PATH_TLS",   "/data/tls/ja3_fingerprints.csv")
 PATH_DEV   = os.getenv("PATH_DEV",   "/data/device_posture/device_posture.csv")
 
-# ---------- Loaders (lazy; safe if files don’t exist) ----------
+# NEW: distance threshold (km) for “far” checks (used by the caller if desired)
+DIST_THRESHOLD_KM = float(os.getenv("DIST_THRESHOLD_KM", "5000"))
+
 _geo_reader = None
 _wifi_db: Dict[str, Dict[str, Any]] = {}
 _tls_db:  Dict[str, str] = {}
 _dev_db:  Dict[str, Dict[str, Any]] = {}
 
-DATA_STATUS = {
-    "geoip": False,
-    "wifi":  False,
-    "tls":   False,
-    "device":False,
-}
+DATA_STATUS = {"geoip": False, "wifi": False, "tls": False, "device": False}
 
 def _load_geo():
     global _geo_reader
@@ -35,6 +30,12 @@ def _load_geo():
     except Exception:
         _geo_reader = None
 
+def _to_float(x):
+    try:
+        return float(str(x).strip())
+    except Exception:
+        return None
+
 def _load_wifi():
     global _wifi_db
     if _wifi_db:
@@ -43,14 +44,15 @@ def _load_wifi():
         if os.path.isfile(PATH_WIFI):
             with open(PATH_WIFI, newline="") as f:
                 for row in csv.DictReader(f):
-                    bssid = (row.get("bssid") or "").lower()
+                    bssid = (row.get("bssid") or row.get("BSSID") or "").lower().strip()
                     if not bssid:
                         continue
-                    _wifi_db[bssid] = {
-                        "ssid": row.get("ssid"),
-                        "lat": float(row["lat"]),
-                        "lon": float(row["lon"]),
-                    }
+                    lat = _to_float(row.get("lat") or row.get("Lat") or row.get("latitude"))
+                    lon = _to_float(row.get("lon") or row.get("Lon") or row.get("longitude"))
+                    if lat is None or lon is None:
+                        continue
+                    _wifi_db[bssid] = {"ssid": row.get("ssid") or row.get("SSID"),
+                                       "lat": lat, "lon": lon}
             DATA_STATUS["wifi"] = True
     except Exception:
         _wifi_db = {}
@@ -63,10 +65,10 @@ def _load_tls():
         if os.path.isfile(PATH_TLS):
             with open(PATH_TLS, newline="") as f:
                 for row in csv.DictReader(f):
-                    ja3 = (row.get("ja3") or "").strip()
+                    ja3 = (row.get("ja3") or row.get("JA3") or "").strip()
                     if not ja3:
                         continue
-                    _tls_db[ja3] = row.get("tag") or ""
+                    _tls_db[ja3] = (row.get("tag") or row.get("Tag") or "").strip()
             DATA_STATUS["tls"] = True
     except Exception:
         _tls_db = {}
@@ -79,12 +81,12 @@ def _load_dev():
         if os.path.isfile(PATH_DEV):
             with open(PATH_DEV, newline="") as f:
                 for row in csv.DictReader(f):
-                    dev_id = row.get("device_id")
+                    dev_id = (row.get("device_id") or row.get("Device_ID") or row.get("deviceId"))
                     if not dev_id:
                         continue
                     _dev_db[dev_id] = {
-                        "os": row.get("os"),
-                        "patched": str(row.get("patched", "")).lower() == "true",
+                        "os": row.get("os") or row.get("OS"),
+                        "patched": str(row.get("patched", "")).strip().lower() == "true",
                         "edr": row.get("edr"),
                         "last_update": row.get("last_update"),
                     }
@@ -95,25 +97,22 @@ def _load_dev():
 def _ensure_loaded():
     _load_geo(); _load_wifi(); _load_tls(); _load_dev()
 
-# ---------- Single-signal enrich helpers ----------
 def enrich_ip(ip: str) -> Dict[str, Any]:
     _load_geo()
     if not _geo_reader:
         return {}
     try:
         r = _geo_reader.city(ip)
-        return {
-            "country": r.country.iso_code,
-            "city":    r.city.name,
-            "lat":     r.location.latitude,
-            "lon":     r.location.longitude,
-        }
+        return {"country": r.country.iso_code,
+                "city": r.city.name,
+                "lat": r.location.latitude,
+                "lon": r.location.longitude}
     except Exception:
         return {}
 
 def enrich_wifi(bssid: str) -> Dict[str, Any]:
     _load_wifi()
-    return _wifi_db.get((bssid or "").lower(), {})
+    return _wifi_db.get((bssid or "").lower().strip(), {})
 
 def enrich_tls(ja3: str) -> Dict[str, Any]:
     _load_tls()
@@ -124,43 +123,37 @@ def enrich_device(dev_id: str) -> Dict[str, Any]:
     _load_dev()
     return _dev_db.get(dev_id or "", {})
 
-# ---------- Public: enrich the full signals payload ----------
 def enrich_all(signals: Dict[str, Any]) -> Dict[str, Any]:
     """
     Returns {
       "geo": {...}, "wifi": {...}, "tls": {...}, "device": {...},
-      "checks": { "ip_wifi_distance_km": <float>|None }
+      "checks": { "ip_wifi_distance_km": <float>|None, "threshold_km": <float> }
     }
+    Only enriches when the input signal exists. No fabricated defaults.
     """
     _ensure_loaded()
     out: Dict[str, Any] = {}
-    # ip -> geo
+
     ip = (signals.get("ip_geo") or {}).get("ip")
     if ip:
-        out["geo"] = enrich_ip(ip)
+        geo = enrich_ip(ip)
+        if geo: out["geo"] = geo
 
-    # wifi -> location + consistency check vs ip_geo/gps
     bssid = (signals.get("wifi_bssid") or {}).get("bssid")
     if bssid:
         w = enrich_wifi(bssid)
-        if w:
-            out["wifi"] = w
+        if w: out["wifi"] = w
 
-    # tls -> tag
     ja3 = (signals.get("tls_fp") or {}).get("ja3")
     if ja3:
         t = enrich_tls(ja3)
-        if t:
-            out["tls"] = t
+        if t: out["tls"] = t
 
-    # device posture
     dev_id = (signals.get("device_posture") or {}).get("device_id")
     if dev_id:
         d = enrich_device(dev_id)
-        if d:
-            out["device"] = d
+        if d: out["device"] = d
 
-    # simple cross-check: geodistance between gps vs wifi/geo (if both exist)
     def _haversine(a_lat, a_lon, b_lat, b_lon):
         from math import radians, sin, cos, asin, sqrt
         R = 6371.0
@@ -169,19 +162,19 @@ def enrich_all(signals: Dict[str, Any]) -> Dict[str, Any]:
         A = sin(dlat/2)**2 + cos(radians(a_lat))*cos(radians(b_lat))*sin(dlon/2)**2
         return 2*R*asin(sqrt(A))
 
-    checks = {}
+    checks: Dict[str, Any] = {}
     gps = signals.get("gps") or {}
-    g1 = (gps.get("lat"), gps.get("lon")) if all(k in gps for k in ("lat","lon")) else None
-
-    # prefer wifi vs gps, else ipgeo vs gps
-    if g1:
-        if "wifi" in out:
-            g2 = (out["wifi"]["lat"], out["wifi"]["lon"])
-            checks["ip_wifi_distance_km"] = round(_haversine(g1[0], g1[1], g2[0], g2[1]), 3)
-        elif "geo" in out and all(k in out["geo"] for k in ("lat","lon")):
-            g2 = (out["geo"]["lat"], out["geo"]["lon"])
-            checks["ip_wifi_distance_km"] = round(_haversine(g1[0], g1[1], g2[0], g2[1]), 3)
+    if all(k in gps for k in ("lat","lon")):
+        a_lat = _to_float(gps["lat"]); a_lon = _to_float(gps["lon"])
+        if a_lat is not None and a_lon is not None:
+            if "wifi" in out:
+                b_lat, b_lon = out["wifi"]["lat"], out["wifi"]["lon"]
+                checks["ip_wifi_distance_km"] = round(_haversine(a_lat, a_lon, b_lat, b_lon), 3)
+            elif "geo" in out and all(k in out["geo"] for k in ("lat","lon")):
+                b_lat, b_lon = out["geo"]["lat"], out["geo"]["lon"]
+                checks["ip_wifi_distance_km"] = round(_haversine(a_lat, a_lon, b_lat, b_lon), 3)
 
     if checks:
+        checks["threshold_km"] = DIST_THRESHOLD_KM
         out["checks"] = checks
     return out

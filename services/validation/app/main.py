@@ -1,54 +1,16 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
-import os, socket, urllib.parse
-import json
+import os, socket, urllib.parse, json
 from app.enrichment import enrich_all, DATA_STATUS
-import datetime as dt
-import httpx
-
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
-api = FastAPI(title="Validation Service", version="0.2")
+api = FastAPI(title="Validation Service", version="0.3")
 
-def _index_validation_to_es(session_id: str, signals: dict, confidences: dict, reasons: list,
-                            quality: dict, cross: dict, enrichment: dict) -> None:
-    es_url = os.getenv("ES_URL", "").rstrip("/")
-    if not es_url:
-        return
-    # keep the doc compact & privacy-safe
-    sig = signals or {}
-    doc = {
-        "@timestamp": dt.datetime.utcnow().isoformat(),
-        "session_id": session_id,
-        "confidences": confidences or {},
-        "reasons": reasons or [],
-        "quality": (quality or {}).get("detail"),
-        "cross": (cross or {}).get("detail"),
-        "checks": (enrichment or {}).get("checks"),
-        "tls_tag": ((enrichment or {}).get("tls") or {}).get("tag"),
-        "device_patched": ((enrichment or {}).get("device") or {}).get("patched"),
-        # minimal signal fields helpful for debugging
-        "ip": ((sig.get("ip_geo") or {}).get("ip")),
-        "gps": {"lat": (sig.get("gps") or {}).get("lat"),
-                "lon": (sig.get("gps") or {}).get("lon")},
-        "bssid": ((sig.get("wifi_bssid") or {}).get("bssid")),
-        "device_id": ((sig.get("device_posture") or {}).get("device_id")),
-        "ja3": ((sig.get("tls_fp") or {}).get("ja3")),
-    }
-    try:
-        with httpx.Client(timeout=3) as c:
-            c.post(f"{es_url}/validated-context/_doc", json=doc)
-    except Exception as e:
-        print(f"[ES][validated-context] index failed: {e}")
-        
-        
-# ---------- Models ----------
 class SignalPayload(BaseModel):
     signals: Dict[str, Any]
 
-# ---------- DB engine (lazy) ----------
 _engine: Optional[Engine] = None
 
 def _mask_dsn(dsn: str) -> str:
@@ -65,71 +27,108 @@ def _mask_dsn(dsn: str) -> str:
     return dsn
 
 def get_engine() -> Optional[Engine]:
-    """Lazily create the SQLAlchemy engine; return None if DSN missing/invalid."""
     global _engine
     if _engine is not None:
         return _engine
-
-    dsn = os.getenv("DB_DSN", "").strip()       # <-- READ THE ENV VAR *DB_DSN*
+    dsn = os.getenv("DB_DSN", "").strip()
     if not dsn:
         print("[DB] DB_DSN missing; skipping persistence")
         return None
-
-    # Normalize and enforce SSL
     if dsn.startswith("postgres://"):
         dsn = "postgresql://" + dsn[len("postgres://"):]
     if "sslmode=" not in dsn:
         dsn += ("&" if "?" in dsn else "?") + "sslmode=require"
-
     try:
         _engine = create_engine(dsn, pool_pre_ping=True, future=True)
-        with _engine.connect() as conn:
-            conn.execute(text("select 1"))
-        print(f"[DB] Engine created OK for { _mask_dsn(dsn) }")
+        with _engine.connect() as c:
+            c.execute(text("select 1"))
+        print(f"[DB] Engine created OK for {_mask_dsn(dsn)}")
     except Exception as e:
-        print(f"[DB] Failed to create engine for { _mask_dsn(dsn) }: {e}")
+        print(f"[DB] Failed to create engine for {_mask_dsn(dsn)}: {e}")
         _engine = None
     return _engine
 
-@api.get("/dnscheck")
-def dnscheck():
-    dsn = os.getenv("DB_DSN", "")
-    if not dsn:
-        return {"ok": False, "error": "DB_DSN not set"}
+# ---------------- dataset-driven checks ----------------
+
+NEGATIVE_TLS_TAGS = {"known_vpn","tor_suspect","malware_family_x","scanner_tool","cloud_proxy","old_openssl","insecure_client","honeypot_fingerprint"}
+
+def compute_reasons(signals: Dict[str, Any], enr: Dict[str, Any]) -> list[str]:
+    """Produce reasons only from observed data/enrichment; no defaults."""
+    reasons: list[str] = []
+
+    label_raw = signals.get("label")
+    if isinstance(label_raw, str):
+        L = label_raw.strip().upper()
+        if L != "BENIGN":
+            if "DDOS" in L or L.startswith("DOS") or "PORTSCAN" in L: reasons.append("BRUTE_FORCE")
+            if "WEB ATTACK" in L or "SQLI" in L or "XSS" in L: reasons.append("POLICY_ELEVATION")
+            if "BOT" in L or "INFILTRATION" in L: reasons.append("DOWNLOAD_EXFIL")
+            if "HEARTBLEED" in L: reasons.append("TLS_ANOMALY")
+
+    # wifi/ip vs gps distance
+    dist = ((enr.get("checks") or {}).get("ip_wifi_distance_km"))
     try:
-        parsed = urllib.parse.urlparse(dsn.replace("postgresql+psycopg", "postgresql"))
-        host = parsed.hostname
-        if host is None:
-          return {'ok': False, 'error': 'Invalid hostname'}
-        port = parsed.port or 5432
-        ip = socket.gethostbyname(host)
-        s = socket.create_connection((ip, port), timeout=5)
-        s.close()
-        return {"ok": True, "host": host, "ip": ip, "port": port}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+        if isinstance(dist, (int, float)) and dist > 50.0:
+            reasons.append("GPS_MISMATCH")
+            reasons.append("WIFI_MISMATCH")
+    except Exception:
+        pass
 
-# ---------- Helpers (toy logic placeholders) ----------
-def quality_checks(s: dict) -> dict:
-    return {"ok": True, "detail": {}}
+    # TLS tag
+    tag = ((enr.get("tls") or {}).get("tag"))
+    if isinstance(tag, str) and tag.strip().lower() in NEGATIVE_TLS_TAGS:
+        reasons.append("TLS_ANOMALY")
 
-def cross_checks(s: dict) -> dict:
-    return {"ok": True, "detail": {}}
+    # Device posture
+    dev = (enr.get("device") or {})
+    patched = dev.get("patched")
+    if isinstance(patched, bool) and not patched:
+        reasons.append("POSTURE_OUTDATED")
 
-def enrichment(s: dict) -> dict:
-    return enrich_all(s)
+    # dedupe/keep order
+    seen = set()
+    out: list[str] = []
+    for r in reasons:
+        if r and r not in seen:
+            out.append(r); seen.add(r)
+    return out
 
-def compute_weights(s: dict, q: dict, x: dict, e: dict) -> dict:
-    return {"ip_geo": 0.25, "gps": 0.30, "wifi_bssid": 0.20, "device_posture": 0.15, "tls_fp": 0.10}
+def quality_checks(signals: Dict[str, Any]) -> dict:
+    # very light quality: mark missing fields; used to downweight later
+    missing = [k for k in ("ip_geo","gps","wifi_bssid","device_posture","tls_fp") if k not in signals]
+    return {"ok": True, "missing": missing}
 
-def aggregate(s: dict, w: dict) -> dict:
-    return {"vector": s, "weights": w}
+def cross_checks(enr: Dict[str, Any]) -> dict:
+    # we already computed distance in enrichment; expose a boolean
+    dist = (enr.get("checks") or {}).get("ip_wifi_distance_km")
+    return {"ok": True, "gps_wifi_far": bool(isinstance(dist, (int,float)) and dist > 50.0)}
 
-# ---------- Endpoints ----------
+def compute_weights(signals: Dict[str, Any], q: dict, x: dict, e: dict) -> Dict[str, float]:
+    """Base weights from what is PRESENT; then penalize by simple checks and normalize."""
+    present = [k for k in ("ip_geo","gps","wifi_bssid","device_posture","tls_fp") if k in signals]
+    if not present:
+        return {}
+    base = {k: 1.0 for k in present}
+    # penalties
+    for k in q.get("missing", []):
+        if k in base: base[k] *= 0.3
+    if x.get("gps_wifi_far"):
+        for k in ("gps","wifi_bssid"):
+            if k in base: base[k] *= 0.5
+    # TLS negative tags lower confidence in tls_fp
+    if isinstance((e.get("tls") or {}).get("tag"), str) and (e["tls"]["tag"].strip().lower() in NEGATIVE_TLS_TAGS):
+        if "tls_fp" in base: base["tls_fp"] *= 0.2
+    # normalize
+    s = sum(base.values())
+    return {k: (v / s) for k, v in base.items()} if s > 0 else {}
+
+def aggregate(signals: dict, w: dict, reasons: list[str]) -> dict:
+    return {"vector": signals, "weights": w, "reasons": reasons}
+
 @api.get("/datasets")
 def datasets():
     return {"loaded": DATA_STATUS}
-    
+
 @api.get("/health")
 def health():
     return {"status": "ok"}
@@ -148,30 +147,25 @@ def dbcheck():
 
 @api.post("/validate")
 def validate(payload: SignalPayload):
-    # --- keep/propagate session_id for correlation ---
-    signals = dict(payload.signals or {})
-    session_id = signals.get("session_id") or f"sess-{os.urandom(4).hex()}"
-    signals["session_id"] = session_id
+    # enrich strictly from datasets
+    e = enrich_all(payload.signals)
+    q = quality_checks(payload.signals)
+    x = cross_checks(e)
+    reasons = compute_reasons(payload.signals, e)
+    w = compute_weights(payload.signals, q, x, e)
+    v = aggregate(payload.signals, w, reasons)
 
-    # --- run your current pipeline ---
-    q = quality_checks(signals)
-    e = enrichment(signals)
-    x = cross_checks(signals)         # (your current signature uses just signals)
-    w = compute_weights(signals, q, x, e)
-    v = aggregate(signals, w)
-
-    # --- persist to Postgres (unchanged except session_id) ---
-    persistence_info = {"ok": False}
+    persistence = {"ok": False}
     eng = get_engine()
     if eng is not None:
         try:
             params = {
-              "session_id": session_id,
-              "signals": json.dumps(signals),
-              "weights": json.dumps(w),
-              "quality": json.dumps(q),
-              "cross_checks": json.dumps(x),
-              "enrichment": json.dumps(e),
+                "session_id": v["vector"].get("session_id") or f"sess-{os.urandom(4).hex()}",
+                "signals": json.dumps(payload.signals),
+                "weights": json.dumps(w),
+                "quality": json.dumps(q),
+                "cross_checks": json.dumps(x),
+                "enrichment": json.dumps(e),
             }
             with eng.begin() as conn:
                 conn.execute(
@@ -188,21 +182,14 @@ def validate(payload: SignalPayload):
                     """),
                     params
                 )
-            persistence_info = {"ok": True}
+            persistence = {"ok": True}
         except Exception as ex:
-            persistence_info = {"ok": False, "error": str(ex)}
-
-    # --- mirror to Elasticsearch for Kibana ---
-    try:
-        # reasons not computed yet in your current code; empty list is fine
-        _index_validation_to_es(session_id, signals, w, [], q, x, e)
-    except Exception:
-        pass
+            persistence = {"ok": False, "error": str(ex)}
 
     return {
-        "validated": v,
+        "validated": v,      # <-- includes reasons
         "quality": q,
         "cross": x,
         "enrichment": e,
-        "persistence": persistence_info
+        "persistence": persistence
     }

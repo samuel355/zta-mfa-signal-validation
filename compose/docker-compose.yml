@@ -84,7 +84,7 @@ services:
             - "*.pyc"
             - ".venv/"
             - ".git/"
-        # Rebuild the image if deps or Dockerfile change
+        # Rebuild the image if update  occures
         - action: rebuild
           path: ../services/validation/requirements.txt
         - action: rebuild
@@ -246,7 +246,6 @@ services:
           path: ../services/siem/requirements.txt
         - action: rebuild
           path: ../services/siem/Dockerfile
-
   simulator:
     build:
       context: ..                       # repo root
@@ -272,23 +271,23 @@ services:
       - zta_net
       
 
-  ingest_test:
-    image: python:3.11-slim
-    container_name: zta_ingest_test
-    working_dir: /app
-    volumes:
-      - ..:/app:ro                 # mount repo (read-only)
-      - ../data:/app/data:ro       # mount datasets
-    environment:
-      DATA_DIR: /app/data
-      CICIDS_DIR: /app/data/cicids
-      WIFI_CSV: /app/data/wifi/wigle_sample.csv
-      TLS_CSV: /app/data/tls/ja3_fingerprints.csv
-      DEVICE_CSV: /app/data/device_posture/device_posture.csv
-      PREVIEW_INCLUDE_BENIGN_RATE: "0.15"   # keep 15% benign so attacks surface
-      PREVIEW_SAMPLE_FILES: "4"
-      PREVIEW_ROWS_PER_FILE: "80"
-      PREVIEW_PRINT_MAX: "25"
-    command: ["python","tests/standalone_ingest_preview.py"]
-    networks:
-      - zta_net
+  # ingest_test:
+  #   image: python:3.11-slim
+  #   container_name: zta_ingest_test
+  #   working_dir: /app
+  #   volumes:
+  #     - ..:/app:ro                 # mount repo (read-only)
+  #     - ../data:/app/data:ro       # mount datasets
+  #   environment:
+  #     DATA_DIR: /app/data
+  #     CICIDS_DIR: /app/data/cicids
+  #     WIFI_CSV: /app/data/wifi/wigle_sample.csv
+  #     TLS_CSV: /app/data/tls/ja3_fingerprints.csv
+  #     DEVICE_CSV: /app/data/device_posture/device_posture.csv
+  #     PREVIEW_INCLUDE_BENIGN_RATE: "0.15"   # keep 15% benign so attacks surface
+  #     PREVIEW_SAMPLE_FILES: "4"
+  #     PREVIEW_ROWS_PER_FILE: "80"
+  #     PREVIEW_PRINT_MAX: "25"
+  #   command: ["python","tests/standalone_ingest_preview.py"]
+  #   networks:
+  #     - zta_net

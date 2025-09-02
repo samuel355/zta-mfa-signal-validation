@@ -155,6 +155,7 @@ def decision(payload: ValidateAndDecide):
     score_req = {
         "vector":  vector,
         "weights": weights,
+        "reasons": (validated.get("reasons") or []),
         "siem":    {"high": siem_counts["high"], "medium": siem_counts["medium"]},
     }
     try:
