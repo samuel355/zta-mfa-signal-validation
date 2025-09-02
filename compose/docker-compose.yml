@@ -211,11 +211,13 @@ services:
       SIEM_URL: http://siem:8000
       # --- Elasticsearch poller config ---
       ES_URL: http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
-      ES_INDEX: logs-*,filebeat-*,thesis-* # comma-separated index patterns
-      ES_KQL: message:"auth_failure" # simple query string
-      ES_SESSION_FIELD: user.id # fallbacks to user.name, then "sess-unknown"
+      ES_INDEX: mfa-events*                        # <- where your simulator writes
+      ES_KQL: enforcement:"MFA_STEP_UP" OR decision:("DENY" OR "BLOCK")
+      ES_SESSION_FIELD: session_id    
       ES_DEFAULT_STRIDE: Tampering # Spoofing|Tampering|Repudiation|InformationDisclosure|DoS|EoP
       ES_DEFAULT_SEVERITY: medium # low|medium|high
+      SEV_HIGH: "0.75"                                   # risk >= 0.70 => high
+      SEV_MED: "0.25" 
       ES_POLL_SECONDS: "20" # how often to poll
       ES_LOOKBACK: "2m"
       ES_MIRROR_INDEX: "siem-alerts"
@@ -227,6 +229,7 @@ services:
     depends_on:
       - validation
       - trust
+      - elasticsearch
     networks:
       - zta_net
     develop:
@@ -265,5 +268,27 @@ services:
     depends_on:
       - validation
       - gateway
+    networks:
+      - zta_net
+      
+
+  ingest_test:
+    image: python:3.11-slim
+    container_name: zta_ingest_test
+    working_dir: /app
+    volumes:
+      - ..:/app:ro                 # mount repo (read-only)
+      - ../data:/app/data:ro       # mount datasets
+    environment:
+      DATA_DIR: /app/data
+      CICIDS_DIR: /app/data/cicids
+      WIFI_CSV: /app/data/wifi/wigle_sample.csv
+      TLS_CSV: /app/data/tls/ja3_fingerprints.csv
+      DEVICE_CSV: /app/data/device_posture/device_posture.csv
+      PREVIEW_INCLUDE_BENIGN_RATE: "0.15"   # keep 15% benign so attacks surface
+      PREVIEW_SAMPLE_FILES: "4"
+      PREVIEW_ROWS_PER_FILE: "80"
+      PREVIEW_PRINT_MAX: "25"
+    command: ["python","tests/standalone_ingest_preview.py"]
     networks:
       - zta_net
