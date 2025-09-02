@@ -59,17 +59,38 @@ ALPHA   = float(os.getenv("SIEM_HIGH_BUMP", "0.15"))
 BETA    = float(os.getenv("SIEM_MED_BUMP",  "0.07"))
 
 # map reasons → signal keys whose weight applies
+# map reasons → signal keys whose weight applies
 REASON_TO_SIGNAL = {
     "IP_GEO_MISMATCH": "ip_geo",
+    "IMPOSSIBLE_TRAVEL": "ip_geo",
     "GPS_MISMATCH": "gps",
     "WIFI_MISMATCH": "wifi_bssid",
     "TLS_ANOMALY": "tls_fp",
+    "JA3_SUSPECT": "tls_fp",
     "POSTURE_OUTDATED": "device_posture",
+    "DEVICE_UNHEALTHY": "device_posture",
     # informational threat types from CICIDS labels (mapped in validation)
     "BRUTE_FORCE": "ip_geo",
     "POLICY_ELEVATION": "ip_geo",
     "DOWNLOAD_EXFIL": "ip_geo",
 }
+
+def _signals_from_reasons(reasons: list[str]) -> set[str]:
+    used = set()
+    for r in reasons or []:
+        r = (r or "").strip().upper()
+        k = REASON_TO_SIGNAL.get(r)
+        if k:
+            used.add(k)
+        else:
+            # safe fallback: map unknown *_MISMATCH into ip_geo; *_TLS into tls_fp; *_DEVICE into device_posture
+            if r.endswith("_MISMATCH"):
+                used.add("ip_geo")
+            elif "TLS" in r or "JA3" in r:
+                used.add("tls_fp")
+            elif "DEVICE" in r or "POSTURE" in r:
+                used.add("device_posture")
+    return used
 
 @api.get("/health")
 def health():
@@ -82,19 +103,14 @@ def score(payload: ValidatedPayload):
     siem = payload.siem or {}
 
     # base risk = sum of weights for signals implicated by reasons (unique)
-    used_signals = set()
-    for r in reasons:
-        k = REASON_TO_SIGNAL.get(r)
-        if k: used_signals.add(k)
+    used_signals = _signals_from_reasons(reasons)
+    
     base = float(sum(w.get(k, 0.0) for k in used_signals))
 
-    # siem bump (count-based)
     siem_term = ALPHA * float(siem.get("high", 0) or 0) + BETA * float(siem.get("medium", 0) or 0)
 
     r = base + siem_term
-    # clamp to [0,1]
-    if r < 0.0: r = 0.0
-    if r > 1.0: r = 1.0
+    r = 0.0 if r < 0.0 else (1.0 if r > 1.0 else r)
 
     if r < ALLOW_T:
         decision = "allow"

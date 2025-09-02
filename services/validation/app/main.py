@@ -34,8 +34,8 @@ def get_engine() -> Optional[Engine]:
     if not dsn:
         print("[DB] DB_DSN missing; skipping persistence")
         return None
-    if dsn.startswith("postgres://"):
-        dsn = "postgresql://" + dsn[len("postgres://"):]
+    if dsn.startswith("postgres+psycopg://"):
+        dsn = "postgresql+psycopg://" + dsn[len("postgres://"):]
     if "sslmode=" not in dsn:
         dsn += ("&" if "?" in dsn else "?") + "sslmode=require"
     try:
@@ -75,9 +75,20 @@ def compute_reasons(signals: Dict[str, Any], enr: Dict[str, Any]) -> list[str]:
         pass
 
     # TLS tag
-    tag = ((enr.get("tls") or {}).get("tag"))
-    if isinstance(tag, str) and tag.strip().lower() in NEGATIVE_TLS_TAGS:
-        reasons.append("TLS_ANOMALY")
+    # NEW: Only treat clearly malicious TLS tags as anomalies
+    CRITICAL_TLS_TAGS = {
+        "tor_suspect",
+        "malware_family_x",
+        "scanner_tool",
+        "cloud_proxy",
+        "insecure_client",
+        "honeypot_fingerprint",
+    }
+    
+    tag = (enr.get("tls") or {}).get("tag")
+    if isinstance(tag, str):
+        if tag.strip().lower() in CRITICAL_TLS_TAGS:
+            reasons.append("TLS_ANOMALY")
 
     # Device posture
     dev = (enr.get("device") or {})

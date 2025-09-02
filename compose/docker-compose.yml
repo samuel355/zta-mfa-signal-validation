@@ -22,7 +22,39 @@ services:
     mem_limit: 2g
     networks:
       - zta_net
+  
+  es_bootstrap:
+    image: curlimages/curl:8.10.1
+    container_name: zta_es_bootstrap
+    depends_on:
+      - elasticsearch
+    environment:
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
+      KIBANA_SYSTEM_PASSWORD: ${KIBANA_SYSTEM_PASSWORD}
+    command: >
+      sh -c '
+        echo "Waiting for Elasticsearch...";
+        until curl -s http://elasticsearch:9200 >/dev/null; do sleep 2; done;
+        echo "Setting kibana_system password...";
+        curl -s -u elastic:${ELASTIC_PASSWORD} -H "Content-Type: application/json" \
+          -X POST http://elasticsearch:9200/_security/user/kibana_system/_password \
+          -d "{\"password\":\"${KIBANA_SYSTEM_PASSWORD}\"}" || true;
 
+        echo "Creating simple index templates (mfa-events, siem-alerts)...";
+        curl -s -u elastic:${ELASTIC_PASSWORD} -H "Content-Type: application/json" \
+          -X PUT http://elasticsearch:9200/_index_template/zta_mfa \
+          -d "{\"index_patterns\":[\"mfa-events*\"],\"template\":{\"mappings\":{\"properties\":{\"@timestamp\":{\"type\":\"date\"},\"session_id\":{\"type\":\"keyword\"},\"risk\":{\"type\":\"float\"},\"decision\":{\"type\":\"keyword\"},\"enforcement\":{\"type\":\"keyword\"},\"reasons\":{\"type\":\"keyword\"}}}}}" || true;
+
+        curl -s -u elastic:${ELASTIC_PASSWORD} -H "Content-Type: application/json" \
+          -X PUT http://elasticsearch:9200/_index_template/zta_siem \
+          -d "{\"index_patterns\":[\"siem-alerts*\"],\"template\":{\"mappings\":{\"properties\":{\"@timestamp\":{\"type\":\"date\"},\"session_id\":{\"type\":\"keyword\"},\"stride\":{\"type\":\"keyword\"},\"severity\":{\"type\":\"keyword\"},\"source\":{\"type\":\"keyword\"}}}}}" || true;
+
+        echo "Bootstrap done.";
+        exit 0;
+      '
+    networks:
+      - zta_net
+          
   kibana:
     image: docker.elastic.co/kibana/kibana:${ELASTIC_VERSION}
     container_name: zta_kibana
@@ -36,6 +68,7 @@ services:
       - "${KIBANA_PORT}:5601"
     depends_on:
       - elasticsearch
+      - es_bootstrap
     networks:
       - zta_net
 
@@ -162,8 +195,11 @@ services:
       TRUST_TIMEOUT_SECS: "10"
       DB_DSN: ${DB_DSN}
       SIEM_URL: http://siem:8000
-      ES_URL: http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
-      TOTP_SECRET: JBSWY3DPEHPK3PXP # (demo, optional)
+      ES_HOST: ${ES_HOST}
+      ES_USER: ${ES_USER}
+      ES_PASS: ${ES_PASS}
+      ES_MFA_INDEX: ${ES_MFA_INDEX}
+      TOTP_SECRET: ${TOTP_SECRET}
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -210,14 +246,16 @@ services:
       TRUST_URL: http://trust:8000
       SIEM_URL: http://siem:8000
       # --- Elasticsearch poller config ---
-      ES_URL: http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
-      ES_INDEX: mfa-events*                        # <- where your simulator writes
+      ES_HOST: ${ES_HOST}
+      ES_USER: ${ES_USER}
+      ES_PASS: ${ES_PASS}
+      ES_INDEX: ${ES_INDEX}  # <- where your simulator writes
       ES_KQL: enforcement:"MFA_STEP_UP" OR decision:("DENY" OR "BLOCK")
-      ES_SESSION_FIELD: session_id    
+      ES_SESSION_FIELD: session_id
       ES_DEFAULT_STRIDE: Tampering # Spoofing|Tampering|Repudiation|InformationDisclosure|DoS|EoP
       ES_DEFAULT_SEVERITY: medium # low|medium|high
-      SEV_HIGH: "0.75"                                   # risk >= 0.70 => high
-      SEV_MED: "0.25" 
+      SEV_HIGH: "0.75" # risk >= 0.70 => high
+      SEV_MED: "0.25"
       ES_POLL_SECONDS: "20" # how often to poll
       ES_LOOKBACK: "2m"
       ES_MIRROR_INDEX: "siem-alerts"
@@ -246,14 +284,15 @@ services:
           path: ../services/siem/requirements.txt
         - action: rebuild
           path: ../services/siem/Dockerfile
+  
   simulator:
     build:
-      context: ..                       # repo root
+      context: .. # repo root
       dockerfile: scripts/simulator/Dockerfile
     container_name: zta_simulator
     working_dir: /app
     volumes:
-      - ../data:/app/data:ro            # makes your local data/ visible at /app/data
+      - ../data:/app/data:ro # makes your local data/ visible at /app/data
     environment:
       DATA_DIR: /app/data
       CICIDS_DIR: /app/data/cicids
@@ -261,7 +300,7 @@ services:
       DEVICE_CSV: /app/data/device_posture/device_posture.csv
       TLS_CSV: /app/data/tls/ja3_fingerprints.csv
       VALIDATE_URL: http://validation:8000/validate
-      GATEWAY_URL:  http://gateway:8000/decision
+      GATEWAY_URL: http://gateway:8000/decision
       SIM_SLEEP: "0.8"
       SIM_MAX_ROWS: "150"
     depends_on:
@@ -269,7 +308,6 @@ services:
       - gateway
     networks:
       - zta_net
-      
 
   # ingest_test:
   #   image: python:3.11-slim

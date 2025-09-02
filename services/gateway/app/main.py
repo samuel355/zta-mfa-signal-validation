@@ -17,10 +17,16 @@ SIEM_URL = os.getenv("SIEM_URL", "http://siem:8000")
 _engine: Optional[Engine] = None
 
 def index_to_es(session_id: str, enforcement: str, risk: float, decision: str, reasons: list[str] | None):
-    es_url = os.getenv("ES_URL")
-    if not es_url:
-        print("[ES_INDEX] ES_URL not set; skipping")
+    es_host = os.getenv("ES_HOST", "http://elasticsearch:9200").rstrip("/")
+    es_user = os.getenv("ES_USER", "")
+    es_pass = os.getenv("ES_PASS", "")
+    es_api_key = os.getenv("ES_API_KEY", "")
+    es_index = os.getenv("ES_MFA_INDEX", "mfa-events")
+
+    if not es_host:
+        print("[ES_INDEX] ES_HOST not set; skipping")
         return
+
     doc = {
         "@timestamp": dt.datetime.utcnow().isoformat(),
         "session_id": session_id,
@@ -29,14 +35,22 @@ def index_to_es(session_id: str, enforcement: str, risk: float, decision: str, r
         "enforcement": enforcement,
     }
     if reasons:
-        # store normalized, upper-cased tokens so SIEM can map to STRIDE
         doc["reasons"] = [str(r).replace("-", "_").replace(" ", "_").upper() for r in reasons]
+
+    # headers + auth (no creds in URL)
+    headers = {"content-type": "application/json"}
+    auth = None
+    if es_api_key:
+        headers["Authorization"] = f"ApiKey {es_api_key}"
+    elif es_user and es_pass:
+        auth = httpx.BasicAuth(es_user, es_pass)  # <-- typed Auth object
+
     try:
-        with httpx.Client(timeout=3) as c:
-            c.post(f"{es_url}/mfa-events/_doc", json=doc)
+        # put auth on the Client; don't pass per-request
+        with httpx.Client(timeout=5, headers=headers, auth=auth) as c:
+            c.post(f"{es_host}/{es_index}/_doc", json=doc)
     except Exception as e:
         print(f"[ES_INDEX] failed: {e}")
-        
 # --- DB engine (lazy) ---
 _engine: Optional[Engine] = None
 
@@ -123,8 +137,8 @@ def dnscheck():
 
 # -------------------- Decision endpoint --------------------
 # Demo TOTP secret for "step_up" – in a real system this would send an OTP to user.
-totp = pyotp.TOTP("JBSWY3DPEHPK3PXP")  # demo only
-# at top of file (ensure these exist)
+_TOTP_SECRET = os.getenv("TOTP_SECRET", "JBSWY3DPEHPK3PXP")  # demo fallback ONLY
+totp = pyotp.TOTP(_TOTP_SECRET)
 
 @api.post("/decision")
 def decision(payload: ValidateAndDecide):
@@ -211,7 +225,7 @@ def decision(payload: ValidateAndDecide):
             persistence = {"ok": True}
         except Exception as ex:
             persistence = {"ok": False, "error": str(ex)}
-    
+
     index_to_es(session_id, enforcement, risk, decision, reasons)
 
     # --- 5) Response (includes OTP for demo if step-up) ---
