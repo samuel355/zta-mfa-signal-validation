@@ -182,21 +182,54 @@ def _first_reason_token(src: Dict[str, Any]) -> str:
     return token
 
 def _derive_stride_from(src: Dict[str, Any]) -> str:
+    """
+    Map an ES document to a STRIDE category.
+    Preference order:
+      1) Explicit reasons[] in the doc (first non-empty token wins)
+      2) Derived token via _first_reason_token(src)
+      3) Field heuristics (gps/ip/wifi/tls/device/exfil/bruteforce)
+      4) Default -> Information Disclosure
+    """
+    def _norm_token(s: str) -> str:
+        return str(s or "").replace("-", "_").replace(" ", "_").upper()
+
+    # 1) Use explicit reasons from ES doc if available
+    rs = src.get("reasons")
+    if isinstance(rs, list) and rs:
+        for r in rs:
+            tok = _norm_token(r)
+            if tok in STRIDE_OVERRIDES:
+                return STRIDE_OVERRIDES[tok]
+            if tok in DEFAULT_REASON_TO_STRIDE:
+                return DEFAULT_REASON_TO_STRIDE[tok]
+    elif isinstance(rs, str) and rs.strip():
+        tok = _norm_token(rs)
+        if tok in STRIDE_OVERRIDES:
+            return STRIDE_OVERRIDES[tok]
+        if tok in DEFAULT_REASON_TO_STRIDE:
+            return DEFAULT_REASON_TO_STRIDE[tok]
+
+    # 2) Fall back to a derived token (looks at common reason fields)
     token = _first_reason_token(src)
-    if token in STRIDE_OVERRIDES:
-        return STRIDE_OVERRIDES[token]
-    if token in DEFAULT_REASON_TO_STRIDE:
-        return DEFAULT_REASON_TO_STRIDE[token]
-    # Broad hints from fields
-    if src.get("gps_mismatch") or src.get("ip_geo_mismatch") or src.get("wifi_mismatch") or src.get("impossible_travel"):
+    if token:
+        token = _norm_token(token)
+        if token in STRIDE_OVERRIDES:
+            return STRIDE_OVERRIDES[token]
+        if token in DEFAULT_REASON_TO_STRIDE:
+            return DEFAULT_REASON_TO_STRIDE[token]
+
+    # 3) Broad field heuristics
+    if any(src.get(k) for k in ("gps_mismatch", "ip_geo_mismatch", "wifi_mismatch", "impossible_travel")):
         return "Spoofing"
-    if src.get("tls_anomaly") or src.get("ja3_suspect") or src.get("device_unhealthy") or src.get("posture_outdated"):
+    if any(src.get(k) for k in ("tls_anomaly", "ja3_suspect", "device_unhealthy", "posture_outdated")):
         return "Tampering"
-    if src.get("exfil") or src.get("data_leak"):
-        return "InformationDisclosure"
+    if any(src.get(k) for k in ("exfil", "data_leak")):
+        return "Information Disclosure"
     if src.get("brute_force"):
         return "DoS"
-    return "InformationDisclosure"
+
+    # 4) Default
+    return "Information Disclosure"
 
 # =====================================================================================
 # MODELS

@@ -16,17 +16,21 @@ SIEM_URL = os.getenv("SIEM_URL", "http://siem:8000")
 # -------------------- DB engine (lazy with psycopg) --------------------
 _engine: Optional[Engine] = None
 
-def index_to_es(session_id, enforcement, risk, decision):
+def index_to_es(session_id: str, enforcement: str, risk: float, decision: str, reasons: list[str] | None):
     es_url = os.getenv("ES_URL")
     if not es_url:
-        raise RuntimeError("ES_URL environment variable is not set")
+        print("[ES_INDEX] ES_URL not set; skipping")
+        return
     doc = {
         "@timestamp": dt.datetime.utcnow().isoformat(),
         "session_id": session_id,
-        "risk": risk,
+        "risk": float(risk),
         "decision": decision,
-        "enforcement": enforcement
+        "enforcement": enforcement,
     }
+    if reasons:
+        # store normalized, upper-cased tokens so SIEM can map to STRIDE
+        doc["reasons"] = [str(r).replace("-", "_").replace(" ", "_").upper() for r in reasons]
     try:
         with httpx.Client(timeout=3) as c:
             c.post(f"{es_url}/mfa-events/_doc", json=doc)
@@ -128,6 +132,7 @@ def decision(payload: ValidateAndDecide):
     validated = payload.validated or {}
     vector    = validated.get("vector", {}) or {}
     weights   = validated.get("weights", {}) or {}
+    reasons   = validated.get("reasons") or []
 
     # Try common places to find a session id; fallback to a generated one
     session_id = (
@@ -191,6 +196,7 @@ def decision(payload: ValidateAndDecide):
                     "risk": risk,
                     "decision": decision,
                     "enforcement": enforcement,
+                    "reasons": reasons,
                     **detail
                 }),
             }
@@ -206,7 +212,7 @@ def decision(payload: ValidateAndDecide):
         except Exception as ex:
             persistence = {"ok": False, "error": str(ex)}
     
-    index_to_es(session_id, enforcement, risk, decision)
+    index_to_es(session_id, enforcement, risk, decision, reasons)
 
     # --- 5) Response (includes OTP for demo if step-up) ---
     resp = {"session_id": session_id, "enforcement": enforcement, "risk": risk, "persistence": persistence}
