@@ -254,8 +254,8 @@ services:
       ES_SESSION_FIELD: session_id
       ES_DEFAULT_STRIDE: Tampering # Spoofing|Tampering|Repudiation|InformationDisclosure|DoS|EoP
       ES_DEFAULT_SEVERITY: medium # low|medium|high
-      SEV_HIGH: "0.75" # risk >= 0.70 => high
-      SEV_MED: "0.25"
+      SEV_HIGH: "0.70" # risk >= 0.70 => high
+      SEV_MED: "0.3"
       ES_POLL_SECONDS: "20" # how often to poll
       ES_LOOKBACK: "2m"
       ES_MIRROR_INDEX: "siem-alerts"
