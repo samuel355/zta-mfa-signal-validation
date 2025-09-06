@@ -12,6 +12,12 @@ services:
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
       - xpack.security.enabled=true
       - xpack.security.transport.ssl.enabled=false
+      - ES_HOST=${ES_HOST}
+      - ES_USER=${ES_USER}
+      - ES_PASS=${ES_PASS}
+      - ES_API_KEY=${ES_API_KEY}
+      - ES_MFA_INDEX=${ES_MFA_INDEX}
+      - ES_INDEX=${ES_INDEX}
     ports:
       - "${ELASTIC_PORT}:9200"
     ulimits:
@@ -21,7 +27,7 @@ services:
     mem_limit: 2g
     networks:
       - zta_net
-  
+
   es_bootstrap:
     image: curlimages/curl:8.10.1
     container_name: zta_es_bootstrap
@@ -30,6 +36,11 @@ services:
     environment:
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       KIBANA_SYSTEM_PASSWORD: ${KIBANA_SYSTEM_PASSWORD}
+      ES_HOST: ${ES_HOST}
+      ES_USER: ${ES_USER}
+      ES_PASS: ${ES_PASS}
+      ES_API_KEY: ${ES_API_KEY}
+      ES_MFA_INDEX: ${ES_MFA_INDEX}
     command: >
       sh -c '
         echo "Waiting for Elasticsearch...";
@@ -53,7 +64,7 @@ services:
       '
     networks:
       - zta_net
-          
+
   kibana:
     image: docker.elastic.co/kibana/kibana:${ELASTIC_VERSION}
     container_name: zta_kibana
@@ -63,6 +74,12 @@ services:
       - ELASTICSEARCH_PASSWORD=${KIBANA_SYSTEM_PASSWORD}
       - ELASTICSEARCH_SSL_VERIFICATIONMODE=none
       - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY="h6z2mT9JNiygeyXj4IRgNreJh0uLHyBXedJnwDZ6/Qg="
+      - ES_HOST=${ES_HOST}
+      - ES_USER=${ES_USER}
+      - ES_PASS=${ES_PASS}
+      - ES_API_KEY=${ES_API_KEY}   # safe if empty
+      - ES_MFA_INDEX=${ES_MFA_INDEX}
+      - ES_INDEX=${ES_INDEX}
     ports:
       - "${KIBANA_PORT}:5601"
     depends_on:
@@ -95,7 +112,11 @@ services:
       ]
     environment:
       DB_DSN: ${DB_DSN}
-      ES_URL: http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
+      ES_HOST: ${ES_HOST}
+      ES_USER: ${ES_USER}
+      ES_PASS: ${ES_PASS}
+      ES_API_KEY: ${ES_API_KEY}
+      ES_MFA_INDEX: ${ES_MFA_INDEX}
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -139,7 +160,11 @@ services:
       ]
     environment:
       DB_DSN: ${DB_DSN}
-      ES_URL: http://elastic:${ELASTIC_PASSWORD}@elasticsearch:9200
+      ES_HOST: ${ES_HOST}
+      ES_USER: ${ES_USER}
+      ES_PASS: ${ES_PASS}
+      ES_API_KEY: ${ES_API_KEY}
+      ES_MFA_INDEX: ${ES_MFA_INDEX}
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -283,7 +308,7 @@ services:
           path: ../services/siem/requirements.txt
         - action: rebuild
           path: ../services/siem/Dockerfile
-  
+
   simulator:
     build:
       context: .. # repo root
@@ -302,6 +327,21 @@ services:
       GATEWAY_URL: http://gateway:8000/decision
       SIM_SLEEP: "0.8"
       SIM_MAX_ROWS: "150"
+
+      # --- add these (taken from your .env) ---
+      SIM_MIN_WIFI: "${SIM_MIN_WIFI}"
+      SIM_MIN_GPS: "${SIM_MIN_GPS}"
+      SIM_MIN_TLS: "${SIM_MIN_TLS}"
+      SIM_MIN_DEVICE: "${SIM_MIN_DEVICE}"
+      SIM_USE_GPS_FROM_WIFI: "${SIM_USE_GPS_FROM_WIFI}"
+
+      SIM_INJECT_GPS_MISMATCH: "${SIM_INJECT_GPS_MISMATCH}"
+      SIM_TLS_BAD_RATE: "${SIM_TLS_BAD_RATE}"
+      SIM_PATCHED_TRUE_RATE: "${SIM_PATCHED_TRUE_RATE}"
+      SIM_GPS_OFFSET_KM: "${SIM_GPS_OFFSET_KM}"
+
+      SIM_ATTACK_ONLY: "${SIM_ATTACK_ONLY}"
+      SIM_ATTACK_WHITELIST: "${SIM_ATTACK_WHITELIST}"
     depends_on:
       - validation
       - gateway

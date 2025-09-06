@@ -134,15 +134,21 @@ def score(payload: ValidatedPayload):
     reasons = payload.reasons or []
     siem = payload.siem or {}
 
-    # base risk = sum of weights for signals implicated by reasons (unique)
-    used_signals = _signals_from_reasons(reasons)
-    
+    # Signals implicated by reasons (risk drivers)
+    used_signals = set()
+    for r in reasons:
+        k = REASON_TO_SIGNAL.get(r)
+        if k:
+            used_signals.add(k)
+
+    # Base risk only from implicated signals
     base = float(sum(w.get(k, 0.0) for k in used_signals))
 
+    # SIEM bump
     siem_term = ALPHA * float(siem.get("high", 0) or 0) + BETA * float(siem.get("medium", 0) or 0)
 
     r = base + siem_term
-    r = 0.0 if r < 0.0 else (1.0 if r > 1.0 else r)
+    r = 0.0 if r < 0 else (1.0 if r > 1 else r)
 
     if r < ALLOW_T:
         decision = "allow"
@@ -151,9 +157,16 @@ def score(payload: ValidatedPayload):
     else:
         decision = "deny"
 
-    components = {"base": base, "siem_bump": siem_term, "signals_used": sorted(used_signals)}
+    # Visibility: which signals are present vs. implicated
+    observed_signals = sorted([k for k, v in (w or {}).items() if v > 0])
+    components = {
+        "base": base,
+        "siem_bump": siem_term,
+        "signals_used": sorted(used_signals),   # implicated by reasons (risk)
+        "signals_observed": observed_signals,   # present in the vector (visibility)
+    }
 
-    # Persist
+    # Persist (unchanged)
     persistence = {"ok": False}
     eng = get_engine()
     if eng is not None:
