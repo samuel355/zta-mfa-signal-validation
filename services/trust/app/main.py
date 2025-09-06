@@ -96,6 +96,38 @@ def _signals_from_reasons(reasons: list[str]) -> set[str]:
 def health():
     return {"status": "ok"}
 
+
+@api.get("/dbcheck")
+def dbcheck():
+    eng = get_engine()
+    if eng is None:
+        return {"ok": False, "error": "DB_DSN missing or invalid (engine not created)"}
+    try:
+        with eng.connect() as c:
+            c.execute(text("select 1"))
+        return {"ok": True}
+    except Exception as ex:
+        return {"ok": False, "error": str(ex)}
+
+@api.get("/dnscheck")
+def dnscheck():
+    dsn = os.getenv("DB_DSN", "")
+    if not dsn:
+        return {"ok": False, "error": "DB_DSN not set"}
+    try:
+        parsed = urllib.parse.urlparse(dsn.replace("postgresql+psycopg", "postgresql"))
+        host = parsed.hostname
+        if host is None:
+            return {"ok": False, "error": "No hostname found in DB_DSN"}
+        port = parsed.port or 5432
+        ip = socket.gethostbyname(host)
+        with socket.create_connection((ip, port), timeout=5):
+            pass
+        return {"ok": True, "host": host, "ip": ip, "port": port}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+        
+        
 @api.post("/score")
 def score(payload: ValidatedPayload):
     w = payload.weights or {}

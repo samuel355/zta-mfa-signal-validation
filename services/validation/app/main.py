@@ -27,17 +27,25 @@ def _mask_dsn(dsn: str) -> str:
     return dsn
 
 def get_engine() -> Optional[Engine]:
+    """Create a psycopg (v3) engine; enforce sslmode=require."""
     global _engine
     if _engine is not None:
         return _engine
+
     dsn = os.getenv("DB_DSN", "").strip()
     if not dsn:
         print("[DB] DB_DSN missing; skipping persistence")
         return None
-    if dsn.startswith("postgres+psycopg://"):
+
+    # Coerce to SQLAlchemy psycopg v3 driver
+    if dsn.startswith("postgresql://"):
+        dsn = "postgresql+psycopg://" + dsn[len("postgresql://"):]
+    elif dsn.startswith("postgres://"):
         dsn = "postgresql+psycopg://" + dsn[len("postgres://"):]
+
     if "sslmode=" not in dsn:
         dsn += ("&" if "?" in dsn else "?") + "sslmode=require"
+
     try:
         _engine = create_engine(dsn, pool_pre_ping=True, future=True)
         with _engine.connect() as c:
@@ -50,7 +58,13 @@ def get_engine() -> Optional[Engine]:
 
 # ---------------- dataset-driven checks ----------------
 
-NEGATIVE_TLS_TAGS = {"known_vpn","tor_suspect","malware_family_x","scanner_tool","cloud_proxy","old_openssl","insecure_client","honeypot_fingerprint"}
+NEGATIVE_TLS_TAGS = {
+    "known_vpn","tor_suspect","malware_family_x","scanner_tool",
+    "cloud_proxy","old_openssl","insecure_client","honeypot_fingerprint"
+}
+
+def _lower(s: Optional[str]) -> str:
+    return (s or "").strip().lower()
 
 def compute_reasons(signals: Dict[str, Any], enr: Dict[str, Any]) -> list[str]:
     """Produce reasons only from observed data/enrichment; no defaults."""
@@ -66,39 +80,39 @@ def compute_reasons(signals: Dict[str, Any], enr: Dict[str, Any]) -> list[str]:
             if "HEARTBLEED" in L: reasons.append("TLS_ANOMALY")
 
     # wifi/ip vs gps distance
-    dist = ((enr.get("checks") or {}).get("ip_wifi_distance_km"))
+    checks = (enr.get("checks") or {})
+    dist = checks.get("ip_wifi_distance_km")
+    thr  = checks.get("threshold_km") or float(os.getenv("DIST_THRESHOLD_KM", "50"))
     try:
-        if isinstance(dist, (int, float)) and dist > 50.0:
+        if isinstance(dist, (int, float)) and isinstance(thr, (int, float)) and dist > float(thr):
             reasons.append("GPS_MISMATCH")
             reasons.append("WIFI_MISMATCH")
     except Exception:
         pass
 
-    # TLS tag
-    # NEW: Only treat clearly malicious TLS tags as anomalies
-    CRITICAL_TLS_TAGS = {
-        "tor_suspect",
-        "malware_family_x",
-        "scanner_tool",
-        "cloud_proxy",
-        "insecure_client",
-        "honeypot_fingerprint",
+    # TLS tag → anomaly only for critical tags (from ENV)
+    # ENV format: "tag1,tag2,..."
+    critical_from_env = {t.strip().lower() for t in (os.getenv("TLS_CRITICAL_TAGS", "") or "").split(",") if t.strip()}
+    CRITICAL_TLS_TAGS = critical_from_env or {
+        "tor_suspect","malware_family_x","scanner_tool","cloud_proxy",
+        "insecure_client","honeypot_fingerprint"
     }
-    
-    tag = (enr.get("tls") or {}).get("tag")
-    if isinstance(tag, str):
-        if tag.strip().lower() in CRITICAL_TLS_TAGS:
-            reasons.append("TLS_ANOMALY")
 
-    # Device posture
+    tag = (enr.get("tls") or {}).get("tag")
+    if isinstance(tag, str) and _lower(tag) in CRITICAL_TLS_TAGS:
+        reasons.append("TLS_ANOMALY")
+
+    # Device posture (prefer simulator-provided flag if present)
     dev = (enr.get("device") or {})
-    patched = dev.get("patched")
+    sim_dev = (signals.get("device_posture") or {})
+    patched = sim_dev.get("patched")
+    if patched is None:
+        patched = dev.get("patched")
     if isinstance(patched, bool) and not patched:
         reasons.append("POSTURE_OUTDATED")
 
     # dedupe/keep order
-    seen = set()
-    out: list[str] = []
+    seen = set(); out: list[str] = []
     for r in reasons:
         if r and r not in seen:
             out.append(r); seen.add(r)
@@ -110,25 +124,33 @@ def quality_checks(signals: Dict[str, Any]) -> dict:
     return {"ok": True, "missing": missing}
 
 def cross_checks(enr: Dict[str, Any]) -> dict:
-    # we already computed distance in enrichment; expose a boolean
-    dist = (enr.get("checks") or {}).get("ip_wifi_distance_km")
-    return {"ok": True, "gps_wifi_far": bool(isinstance(dist, (int,float)) and dist > 50.0)}
+    # expose a boolean using the same threshold as enrichment reported (or env fallback)
+    checks = (enr.get("checks") or {})
+    dist = checks.get("ip_wifi_distance_km")
+    thr  = checks.get("threshold_km") or float(os.getenv("DIST_THRESHOLD_KM", "50"))
+    return {"ok": True, "gps_wifi_far": bool(isinstance(dist, (int,float)) and dist > float(thr))}
 
 def compute_weights(signals: Dict[str, Any], q: dict, x: dict, e: dict) -> Dict[str, float]:
     """Base weights from what is PRESENT; then penalize by simple checks and normalize."""
     present = [k for k in ("ip_geo","gps","wifi_bssid","device_posture","tls_fp") if k in signals]
     if not present:
         return {}
+
     base = {k: 1.0 for k in present}
+
     # penalties
     for k in q.get("missing", []):
         if k in base: base[k] *= 0.3
+
     if x.get("gps_wifi_far"):
         for k in ("gps","wifi_bssid"):
             if k in base: base[k] *= 0.5
+
     # TLS negative tags lower confidence in tls_fp
-    if isinstance((e.get("tls") or {}).get("tag"), str) and (e["tls"]["tag"].strip().lower() in NEGATIVE_TLS_TAGS):
-        if "tls_fp" in base: base["tls_fp"] *= 0.2
+    tls_tag = _lower((e.get("tls") or {}).get("tag"))
+    if tls_tag and tls_tag in NEGATIVE_TLS_TAGS and "tls_fp" in base:
+        base["tls_fp"] *= 0.2
+
     # normalize
     s = sum(base.values())
     return {k: (v / s) for k, v in base.items()} if s > 0 else {}
