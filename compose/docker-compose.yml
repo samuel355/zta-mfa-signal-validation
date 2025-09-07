@@ -1,4 +1,4 @@
-
+# tip: docker compose ignores 'version:' now; omit it.
 networks:
   zta_net:
     driver: bridge
@@ -12,12 +12,6 @@ services:
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
       - xpack.security.enabled=true
       - xpack.security.transport.ssl.enabled=false
-      - ES_HOST=${ES_HOST}
-      - ES_USER=${ES_USER}
-      - ES_PASS=${ES_PASS}
-      - ES_API_KEY=${ES_API_KEY}
-      - ES_MFA_INDEX=${ES_MFA_INDEX}
-      - ES_INDEX=${ES_INDEX}
     ports:
       - "${ELASTIC_PORT}:9200"
     ulimits:
@@ -25,45 +19,7 @@ services:
         soft: -1
         hard: -1
     mem_limit: 2g
-    networks:
-      - zta_net
-
-  es_bootstrap:
-    image: curlimages/curl:8.10.1
-    container_name: zta_es_bootstrap
-    depends_on:
-      - elasticsearch
-    environment:
-      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
-      KIBANA_SYSTEM_PASSWORD: ${KIBANA_SYSTEM_PASSWORD}
-      ES_HOST: ${ES_HOST}
-      ES_USER: ${ES_USER}
-      ES_PASS: ${ES_PASS}
-      ES_API_KEY: ${ES_API_KEY}
-      ES_MFA_INDEX: ${ES_MFA_INDEX}
-    command: >
-      sh -c '
-        echo "Waiting for Elasticsearch...";
-        until curl -s http://elasticsearch:9200 >/dev/null; do sleep 2; done;
-        echo "Setting kibana_system password...";
-        curl -s -u elastic:${ELASTIC_PASSWORD} -H "Content-Type: application/json" \
-          -X POST http://elasticsearch:9200/_security/user/kibana_system/_password \
-          -d "{\"password\":\"${KIBANA_SYSTEM_PASSWORD}\"}" || true;
-
-        echo "Creating simple index templates (mfa-events, siem-alerts)...";
-        curl -s -u elastic:${ELASTIC_PASSWORD} -H "Content-Type: application/json" \
-          -X PUT http://elasticsearch:9200/_index_template/zta_mfa \
-          -d "{\"index_patterns\":[\"mfa-events*\"],\"template\":{\"mappings\":{\"properties\":{\"@timestamp\":{\"type\":\"date\"},\"session_id\":{\"type\":\"keyword\"},\"risk\":{\"type\":\"float\"},\"decision\":{\"type\":\"keyword\"},\"enforcement\":{\"type\":\"keyword\"},\"reasons\":{\"type\":\"keyword\"}}}}}" || true;
-
-        curl -s -u elastic:${ELASTIC_PASSWORD} -H "Content-Type: application/json" \
-          -X PUT http://elasticsearch:9200/_index_template/zta_siem \
-          -d "{\"index_patterns\":[\"siem-alerts*\"],\"template\":{\"mappings\":{\"properties\":{\"@timestamp\":{\"type\":\"date\"},\"session_id\":{\"type\":\"keyword\"},\"stride\":{\"type\":\"keyword\"},\"severity\":{\"type\":\"keyword\"},\"source\":{\"type\":\"keyword\"}}}}}" || true;
-
-        echo "Bootstrap done.";
-        exit 0;
-      '
-    networks:
-      - zta_net
+    networks: [zta_net]
 
   kibana:
     image: docker.elastic.co/kibana/kibana:${ELASTIC_VERSION}
@@ -74,249 +30,97 @@ services:
       - ELASTICSEARCH_PASSWORD=${KIBANA_SYSTEM_PASSWORD}
       - ELASTICSEARCH_SSL_VERIFICATIONMODE=none
       - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY="h6z2mT9JNiygeyXj4IRgNreJh0uLHyBXedJnwDZ6/Qg="
-      - ES_HOST=${ES_HOST}
-      - ES_USER=${ES_USER}
-      - ES_PASS=${ES_PASS}
-      - ES_API_KEY=${ES_API_KEY}   # safe if empty
-      - ES_MFA_INDEX=${ES_MFA_INDEX}
-      - ES_INDEX=${ES_INDEX}
     ports:
       - "${KIBANA_PORT}:5601"
-    depends_on:
-      - elasticsearch
-      - es_bootstrap
-    networks:
-      - zta_net
-
-  toxiproxy:
-    image: shopify/toxiproxy:latest
-    container_name: zta_toxiproxy
-    ports:
-      - "8474:8474" # admin API
-      - "8666:8666" # example proxy port
-    networks:
-      - zta_net
+    depends_on: [elasticsearch]
+    networks: [zta_net]
 
   validation:
     build: ../services/validation
     container_name: zta_validation
-    command:
-      [
-        "uvicorn",
-        "app.main:api",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "8000",
-        "--reload",
-      ]
+    command: ["uvicorn","app.main:api","--host","0.0.0.0","--port","8000","--reload"]
     environment:
       DB_DSN: ${DB_DSN}
-      ES_HOST: ${ES_HOST}
-      ES_USER: ${ES_USER}
-      ES_PASS: ${ES_PASS}
-      ES_API_KEY: ${ES_API_KEY}
-      ES_MFA_INDEX: ${ES_MFA_INDEX}
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    ports:
-      - "8001:8000"
-    depends_on:
-      - elasticsearch
-    networks:
-      - zta_net
-    develop:
-      watch:
-        # Sync source code into the running container
-        - action: sync
-          path: ../services/validation/app
-          target: /app
-          ignore:
-            - __pycache__/
-            - "*.pyc"
-            - ".venv/"
-            - ".git/"
-        # Rebuild the image if update  occures
-        - action: rebuild
-          path: ../services/validation/requirements.txt
-        - action: rebuild
-          path: ../services/validation/Dockerfile
+      DIST_THRESHOLD_KM: ${DIST_THRESHOLD_KM}
+      PATH_GEOIP: /data/geolite2/GeoLite2-City.mmdb
+      PATH_WIFI:  /data/wifi/wigle_sample.csv
+      PATH_TLS:   /data/tls/ja3_fingerprints.csv
+      PATH_DEV:   /data/device_posture/device_posture.csv
     volumes:
       - ../data:/data:ro
+    ports: ["8001:8000"]
+    depends_on: [elasticsearch]
+    networks: [zta_net]
 
   trust:
     build: ../services/trust
     container_name: zta_trust
-    command:
-      [
-        "uvicorn",
-        "app.main:api",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "8000",
-        "--reload",
-      ]
+    command: ["uvicorn","app.main:api","--host","0.0.0.0","--port","8000","--reload"]
     environment:
       DB_DSN: ${DB_DSN}
+      ALLOW_T: ${ALLOW_T}
+      DENY_T:  ${DENY_T}
+      SIEM_HIGH_BUMP: ${SIEM_HIGH_BUMP}
+      SIEM_MED_BUMP:  ${SIEM_MED_BUMP}
+      TRUST_BASE_GAIN: ${TRUST_BASE_GAIN}
+      TRUST_FALLBACK_OBSERVED: ${TRUST_FALLBACK_OBSERVED}
+    ports: ["8002:8000"]
+    depends_on: [validation]
+    networks: [zta_net]
+
+  gateway:
+    build: ../services/gateway
+    container_name: zta_gateway
+    command: ["uvicorn","app.main:api","--host","0.0.0.0","--port","8000","--reload"]
+    environment:
+      TRUST_URL: http://trust:8000
+      SIEM_URL:  http://siem:8000
+      DB_DSN: ${DB_DSN}
+      TOTP_SECRET: ${TOTP_SECRET}
+      # ES via headers (no creds in URL)
       ES_HOST: ${ES_HOST}
       ES_USER: ${ES_USER}
       ES_PASS: ${ES_PASS}
       ES_API_KEY: ${ES_API_KEY}
       ES_MFA_INDEX: ${ES_MFA_INDEX}
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    ports:
-      - "8002:8000"
+    ports: ["8003:8000"]
     depends_on:
-      - elasticsearch
+      - trust
       - validation
-    networks:
-      - zta_net
-    develop:
-      watch:
-        - action: sync
-          path: ../services/trust/app
-          target: /app
-          ignore:
-            - __pycache__/
-            - "*.pyc"
-            - ".venv/"
-            - ".git/"
-        - action: rebuild
-          path: ../services/trust/requirements.txt
-        - action: rebuild
-          path: ../services/trust/Dockerfile
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - >
-          python -c "import urllib.request,sys;
-          sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).getcode()==200
-          else sys.exit(1)"
-      interval: 10s
-      timeout: 3s
-      start_period: 10s
-      retries: 5
-
-  gateway:
-    build: ../services/gateway
-    container_name: zta_gateway
-    command:
-      [
-        "uvicorn",
-        "app.main:api",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "8000",
-        "--reload",
-      ]
-    environment:
-      TRUST_URL: http://trust:8000
-      TRUST_TIMEOUT_SECS: "10"
-      DB_DSN: ${DB_DSN}
-      SIEM_URL: http://siem:8000
-      ES_HOST: ${ES_HOST}
-      ES_USER: ${ES_USER}
-      ES_PASS: ${ES_PASS}
-      ES_MFA_INDEX: ${ES_MFA_INDEX}
-      TOTP_SECRET: ${TOTP_SECRET}
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    ports:
-      - "8003:8000"
-    depends_on:
-      trust:
-        condition: service_healthy
-      siem:
-        condition: service_started
-
-    networks:
-      - zta_net
-    develop:
-      watch:
-        - action: sync
-          path: ../services/gateway/app
-          target: /app
-          ignore:
-            - __pycache__/
-            - "*.pyc"
-            - ".venv/"
-            - ".git/"
-        - action: rebuild
-          path: ../services/gateway/requirements.txt
-        - action: rebuild
-          path: ../services/gateway/Dockerfile
+    networks: [zta_net]
 
   siem:
     build: ../services/siem
     container_name: zta_siem
-    command:
-      [
-        "uvicorn",
-        "app.main:api",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "8000",
-        "--reload",
-      ]
+    command: ["uvicorn","app.main:api","--host","0.0.0.0","--port","8000","--reload"]
     environment:
       DB_DSN: ${DB_DSN}
-      TRUST_URL: http://trust:8000
-      SIEM_URL: http://siem:8000
-      # --- Elasticsearch poller config ---
+      # ES config
       ES_HOST: ${ES_HOST}
       ES_USER: ${ES_USER}
       ES_PASS: ${ES_PASS}
-      ES_INDEX: ${ES_INDEX}  # <- where your simulator writes
-      ES_KQL: enforcement:"MFA_STEP_UP" OR decision:("DENY" OR "BLOCK")
+      ES_API_KEY: ${ES_API_KEY}
+      ES_INDEX: ${ES_INDEX}
+      ES_MIRROR_INDEX: siem-alerts
       ES_SESSION_FIELD: session_id
-      ES_DEFAULT_STRIDE: Tampering # Spoofing|Tampering|Repudiation|InformationDisclosure|DoS|EoP
-      ES_DEFAULT_SEVERITY: medium # low|medium|high
-      SEV_HIGH: "0.70" # risk >= 0.70 => high
-      SEV_MED: "0.3"
-      ES_POLL_SECONDS: "20" # how often to poll
+      ES_DEFAULT_STRIDE: Tampering
+      ES_DEFAULT_SEVERITY: medium
+      ES_POLL_SECONDS: "20"
       ES_LOOKBACK: "2m"
-      ES_MIRROR_INDEX: "siem-alerts"
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    ports:
-      - "8010:8000"
-    depends_on:
-      - validation
-      - trust
-      - elasticsearch
-    networks:
-      - zta_net
-    develop:
-      watch:
-        - action: sync
-          path: ../services/siem/app
-          target: /app
-          ignore:
-            - __pycache__/
-            - "*.pyc"
-            - ".venv/"
-            - ".git/"
-        - action: rebuild
-          path: ../services/siem/requirements.txt
-        - action: rebuild
-          path: ../services/siem/Dockerfile
+      SEV_HIGH: "${SEV_HIGH}"
+      SEV_MED:  "${SEV_MED}"
+    ports: ["8010:8000"]
+    depends_on: [gateway, validation, trust, elasticsearch]
+    networks: [zta_net]
 
   simulator:
     build:
-      context: .. # repo root
+      context: ..
       dockerfile: scripts/simulator/Dockerfile
     container_name: zta_simulator
     working_dir: /app
     volumes:
-      - ../data:/app/data:ro # makes your local data/ visible at /app/data
+      - ../data:/app/data:ro
     environment:
       DATA_DIR: /app/data
       CICIDS_DIR: /app/data/cicids
@@ -324,47 +128,24 @@ services:
       DEVICE_CSV: /app/data/device_posture/device_posture.csv
       TLS_CSV: /app/data/tls/ja3_fingerprints.csv
       VALIDATE_URL: http://validation:8000/validate
-      GATEWAY_URL: http://gateway:8000/decision
-      SIM_SLEEP: "0.8"
-      SIM_MAX_ROWS: "150"
-
-      # --- add these (taken from your .env) ---
-      SIM_MIN_WIFI: "${SIM_MIN_WIFI}"
-      SIM_MIN_GPS: "${SIM_MIN_GPS}"
-      SIM_MIN_TLS: "${SIM_MIN_TLS}"
-      SIM_MIN_DEVICE: "${SIM_MIN_DEVICE}"
+      GATEWAY_URL:  http://gateway:8000/decision
+      SIM_SLEEP: "${SIM_SLEEP}"
+      SIM_MAX_ROWS: "${SIM_MAX_ROWS}"
+      SIM_MAX_PER_FILE: "${SIM_MAX_PER_FILE}"
       SIM_USE_GPS_FROM_WIFI: "${SIM_USE_GPS_FROM_WIFI}"
-
+      SIM_MIN_WIFI: "${SIM_MIN_WIFI}"
+      SIM_MIN_GPS:  "${SIM_MIN_GPS}"
+      SIM_MIN_TLS:  "${SIM_MIN_TLS}"
+      SIM_MIN_DEVICE: "${SIM_MIN_DEVICE}"
+      SIM_MODE: "${SIM_MODE}"
+      SIM_PCT_SPOOFING: "${SIM_PCT_SPOOFING}"
+      SIM_PCT_TLS_TAMPERING: "${SIM_PCT_TLS_TAMPERING}"
+      SIM_PCT_DOS: "${SIM_PCT_DOS}"
+      SIM_PCT_EXFIL: "${SIM_PCT_EXFIL}"
+      SIM_PCT_EOP: "${SIM_PCT_EOP}"
       SIM_INJECT_GPS_MISMATCH: "${SIM_INJECT_GPS_MISMATCH}"
       SIM_TLS_BAD_RATE: "${SIM_TLS_BAD_RATE}"
       SIM_PATCHED_TRUE_RATE: "${SIM_PATCHED_TRUE_RATE}"
       SIM_GPS_OFFSET_KM: "${SIM_GPS_OFFSET_KM}"
-
-      SIM_ATTACK_ONLY: "${SIM_ATTACK_ONLY}"
-      SIM_ATTACK_WHITELIST: "${SIM_ATTACK_WHITELIST}"
-    depends_on:
-      - validation
-      - gateway
-    networks:
-      - zta_net
-
-  # ingest_test:
-  #   image: python:3.11-slim
-  #   container_name: zta_ingest_test
-  #   working_dir: /app
-  #   volumes:
-  #     - ..:/app:ro                 # mount repo (read-only)
-  #     - ../data:/app/data:ro       # mount datasets
-  #   environment:
-  #     DATA_DIR: /app/data
-  #     CICIDS_DIR: /app/data/cicids
-  #     WIFI_CSV: /app/data/wifi/wigle_sample.csv
-  #     TLS_CSV: /app/data/tls/ja3_fingerprints.csv
-  #     DEVICE_CSV: /app/data/device_posture/device_posture.csv
-  #     PREVIEW_INCLUDE_BENIGN_RATE: "0.15"   # keep 15% benign so attacks surface
-  #     PREVIEW_SAMPLE_FILES: "4"
-  #     PREVIEW_ROWS_PER_FILE: "80"
-  #     PREVIEW_PRINT_MAX: "25"
-  #   command: ["python","tests/standalone_ingest_preview.py"]
-  #   networks:
-  #     - zta_net
+    depends_on: [validation, gateway]
+    networks: [zta_net]

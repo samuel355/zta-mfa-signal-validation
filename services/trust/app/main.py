@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
-import os, urllib.parse, socket, json
+import os, json
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
-api = FastAPI(title="Trust Service", version="0.3")
+api = FastAPI(title="Trust Service", version="0.4")
 
 class ValidatedPayload(BaseModel):
     vector: Dict[str, Any] = {}
@@ -30,143 +30,72 @@ def _mask_dsn(dsn: str) -> str:
 
 def get_engine() -> Optional[Engine]:
     global _engine
-    if _engine is not None:
-        return _engine
-    dsn = os.getenv("DB_DSN", "").strip()
+    if _engine is not None: return _engine
+    dsn = os.getenv("DB_DSN","").strip()
     if not dsn:
-        print("[DB] DB_DSN missing; skipping persistence")
-        return None
-    if dsn.startswith("postgresql://"):
-        dsn = "postgresql+psycopg://" + dsn[len("postgresql://"):]
-    elif dsn.startswith("postgres://"):
-        dsn = "postgresql+psycopg://" + dsn[len("postgres://"):]
+        print("[DB] DB_DSN missing; skipping persistence"); return None
+    if dsn.startswith("postgresql://"): dsn = "postgresql+psycopg://" + dsn[len("postgresql://"):]
+    elif dsn.startswith("postgres://"): dsn = "postgresql+psycopg://" + dsn[len("postgres://"):]
     if "sslmode=" not in dsn:
         dsn += ("&" if "?" in dsn else "?") + "sslmode=require"
     try:
         _engine = create_engine(dsn, pool_pre_ping=True, future=True)
-        with _engine.connect() as conn:
-            conn.execute(text("select 1"))
+        with _engine.connect() as conn: conn.execute(text("select 1"))
         print(f"[DB] Engine created OK for {_mask_dsn(dsn)}")
     except Exception as e:
-        print(f"[DB] Failed to create engine for {_mask_dsn(dsn)}: {e}")
-        _engine = None
+        print(f"[DB] Failed to create engine for {_mask_dsn(dsn)}: {e}"); _engine = None
     return _engine
 
-# ---- thesis thresholds ----
-ALLOW_T = float(os.getenv("ALLOW_T", "0.25"))   # r < 0.25
-DENY_T  = float(os.getenv("DENY_T",  "0.75"))   # r >= 0.75
-ALPHA   = float(os.getenv("SIEM_HIGH_BUMP", "0.15"))
-BETA    = float(os.getenv("SIEM_MED_BUMP",  "0.07"))
+ALLOW_T = float(os.getenv("ALLOW_T","0.25"))
+DENY_T  = float(os.getenv("DENY_T", "0.70"))
+ALPHA   = float(os.getenv("SIEM_HIGH_BUMP","0.15"))
+BETA    = float(os.getenv("SIEM_MED_BUMP", "0.07"))
+TRUST_BASE_GAIN = float(os.getenv("TRUST_BASE_GAIN","1.0"))
+FALLBACK_TOP_OBSERVED = os.getenv("TRUST_FALLBACK_OBSERVED","false").lower() in {"1","true","yes","on"}
 
-# map reasons → signal keys whose weight applies
-# map reasons → signal keys whose weight applies
 REASON_TO_SIGNAL = {
     "IP_GEO_MISMATCH": "ip_geo",
-    "IMPOSSIBLE_TRAVEL": "ip_geo",
     "GPS_MISMATCH": "gps",
     "WIFI_MISMATCH": "wifi_bssid",
     "TLS_ANOMALY": "tls_fp",
-    "JA3_SUSPECT": "tls_fp",
     "POSTURE_OUTDATED": "device_posture",
-    "DEVICE_UNHEALTHY": "device_posture",
-    # informational threat types from CICIDS labels (mapped in validation)
-    "BRUTE_FORCE": "ip_geo",
+    "DDOS": "ip_geo",
+    "DOS": "ip_geo",
+    "PORTSCAN": "ip_geo",
     "POLICY_ELEVATION": "ip_geo",
     "DOWNLOAD_EXFIL": "ip_geo",
 }
 
-def _signals_from_reasons(reasons: list[str]) -> set[str]:
-    used = set()
-    for r in reasons or []:
-        r = (r or "").strip().upper()
-        k = REASON_TO_SIGNAL.get(r)
-        if k:
-            used.add(k)
-        else:
-            # safe fallback: map unknown *_MISMATCH into ip_geo; *_TLS into tls_fp; *_DEVICE into device_posture
-            if r.endswith("_MISMATCH"):
-                used.add("ip_geo")
-            elif "TLS" in r or "JA3" in r:
-                used.add("tls_fp")
-            elif "DEVICE" in r or "POSTURE" in r:
-                used.add("device_posture")
-    return used
-
 @api.get("/health")
-def health():
-    return {"status": "ok"}
+def health(): return {"status": "ok"}
 
-
-@api.get("/dbcheck")
-def dbcheck():
-    eng = get_engine()
-    if eng is None:
-        return {"ok": False, "error": "DB_DSN missing or invalid (engine not created)"}
-    try:
-        with eng.connect() as c:
-            c.execute(text("select 1"))
-        return {"ok": True}
-    except Exception as ex:
-        return {"ok": False, "error": str(ex)}
-
-@api.get("/dnscheck")
-def dnscheck():
-    dsn = os.getenv("DB_DSN", "")
-    if not dsn:
-        return {"ok": False, "error": "DB_DSN not set"}
-    try:
-        parsed = urllib.parse.urlparse(dsn.replace("postgresql+psycopg", "postgresql"))
-        host = parsed.hostname
-        if host is None:
-            return {"ok": False, "error": "No hostname found in DB_DSN"}
-        port = parsed.port or 5432
-        ip = socket.gethostbyname(host)
-        with socket.create_connection((ip, port), timeout=5):
-            pass
-        return {"ok": True, "host": host, "ip": ip, "port": port}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-        
-        
 @api.post("/score")
 def score(payload: ValidatedPayload):
-    w = payload.weights or {}
     reasons = payload.reasons or []
-    siem = payload.siem or {}
+    used_signals = {REASON_TO_SIGNAL[r] for r in reasons if r in REASON_TO_SIGNAL}
+    observed_signals = sorted([k for k,v in (payload.weights or {}).items() if v > 0])
 
-    # Signals implicated by reasons (risk drivers)
-    used_signals = set()
-    for r in reasons:
-        k = REASON_TO_SIGNAL.get(r)
-        if k:
-            used_signals.add(k)
+    base_raw = float(sum((payload.weights or {}).get(k, 0.0) for k in used_signals))
+    base = base_raw * TRUST_BASE_GAIN
 
-    # Base risk only from implicated signals
-    base = float(sum(w.get(k, 0.0) for k in used_signals))
+    if not used_signals and FALLBACK_TOP_OBSERVED and observed_signals:
+        top = max((observed_signals), key=lambda k: (payload.weights or {}).get(k, 0.0))
+        used_signals.add(top)
+        base = ((payload.weights or {}).get(top, 0.0)) * TRUST_BASE_GAIN
 
-    # SIEM bump
-    siem_term = ALPHA * float(siem.get("high", 0) or 0) + BETA * float(siem.get("medium", 0) or 0)
+    siem_term = ALPHA * float((payload.siem or {}).get("high", 0) or 0) + \
+                BETA  * float((payload.siem or {}).get("medium", 0) or 0)
 
     r = base + siem_term
     r = 0.0 if r < 0 else (1.0 if r > 1 else r)
 
-    if r < ALLOW_T:
-        decision = "allow"
-    elif r < DENY_T:
-        decision = "step_up"
-    else:
-        decision = "deny"
+    decision = "allow" if r < ALLOW_T else ("step_up" if r < DENY_T else "deny")
 
-    # Visibility: which signals are present vs. implicated
-    observed_signals = sorted([k for k, v in (w or {}).items() if v > 0])
     components = {
-        "base": base,
-        "siem_bump": siem_term,
-        "signals_used": sorted(used_signals),   # implicated by reasons (risk)
-        "signals_observed": observed_signals,   # present in the vector (visibility)
+        "base": round(base,3), "siem_bump": round(siem_term,3),
+        "signals_used": sorted(used_signals), "signals_observed": observed_signals,
     }
 
-    # Persist (unchanged)
     persistence = {"ok": False}
     eng = get_engine()
     if eng is not None:
@@ -176,13 +105,11 @@ def score(payload: ValidatedPayload):
                 conn.execute(
                     text("""
                         insert into zta.trust_decisions (session_id, risk, decision, components)
-                        values (:session_id, :risk, :decision, cast(:components as jsonb))
+                        values (:sid, :r, :d, cast(:c as jsonb))
                     """),
                     {
-                        "session_id": payload.vector.get("session_id") or f"sess-{os.urandom(4).hex()}",
-                        "risk": r,
-                        "decision": decision,
-                        "components": json.dumps(components),
+                        "sid": payload.vector.get("session_id") or f"sess-{os.urandom(4).hex()}",
+                        "r": r, "d": decision, "c": json.dumps(components),
                     }
                 )
             persistence = {"ok": True}
