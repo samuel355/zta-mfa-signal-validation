@@ -129,20 +129,23 @@ services:
       TLS_CSV: /app/data/tls/ja3_fingerprints.csv
       VALIDATE_URL: http://validation:8000/validate
       GATEWAY_URL:  http://gateway:8000/decision
+      
+      SIM_MODE: ${SIM_MODE}
       SIM_SLEEP: "${SIM_SLEEP}"
       SIM_MAX_ROWS: "${SIM_MAX_ROWS}"
       SIM_MAX_PER_FILE: "${SIM_MAX_PER_FILE}"
       SIM_USE_GPS_FROM_WIFI: "${SIM_USE_GPS_FROM_WIFI}"
+      
       SIM_MIN_WIFI: "${SIM_MIN_WIFI}"
       SIM_MIN_GPS:  "${SIM_MIN_GPS}"
       SIM_MIN_TLS:  "${SIM_MIN_TLS}"
       SIM_MIN_DEVICE: "${SIM_MIN_DEVICE}"
-      SIM_MODE: "${SIM_MODE}"
       SIM_PCT_SPOOFING: "${SIM_PCT_SPOOFING}"
       SIM_PCT_TLS_TAMPERING: "${SIM_PCT_TLS_TAMPERING}"
       SIM_PCT_DOS: "${SIM_PCT_DOS}"
       SIM_PCT_EXFIL: "${SIM_PCT_EXFIL}"
       SIM_PCT_EOP: "${SIM_PCT_EOP}"
+      SIM_PCT_REPUDIATION: "${SIM_PCT_REPUDIATION}"
       SIM_INJECT_GPS_MISMATCH: "${SIM_INJECT_GPS_MISMATCH}"
       SIM_TLS_BAD_RATE: "${SIM_TLS_BAD_RATE}"
       SIM_PATCHED_TRUE_RATE: "${SIM_PATCHED_TRUE_RATE}"

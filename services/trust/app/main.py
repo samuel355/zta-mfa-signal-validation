@@ -59,11 +59,16 @@ REASON_TO_SIGNAL = {
     "WIFI_MISMATCH": "wifi_bssid",
     "TLS_ANOMALY": "tls_fp",
     "POSTURE_OUTDATED": "device_posture",
-    "DDOS": "ip_geo",
-    "DOS": "ip_geo",
-    "PORTSCAN": "ip_geo",
-    "POLICY_ELEVATION": "ip_geo",
+
+    # CICIDS-derived buckets
+    "BRUTE_FORCE": "ip_geo",         # DoS/PortScan
+    "POLICY_ELEVATION": "ip_geo",    # web attacks
     "DOWNLOAD_EXFIL": "ip_geo",
+
+    # loose aliases (won't be emitted now, but safe if they appear)
+    "DOS": "ip_geo",
+    "EOP": "ip_geo",
+    "INFO_DISCLOSURE": "ip_geo",
 }
 
 @api.get("/health")
