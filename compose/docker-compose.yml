@@ -41,6 +41,7 @@ services:
     command: ["uvicorn","app.main:api","--host","0.0.0.0","--port","8000","--reload"]
     environment:
       DB_DSN: ${DB_DSN}
+      PGOPTIONS: ${PGOPTIONS}
       DIST_THRESHOLD_KM: ${DIST_THRESHOLD_KM}
       PATH_GEOIP: /data/geolite2/GeoLite2-City.mmdb
       PATH_WIFI:  /data/wifi/wigle_sample.csv
@@ -58,6 +59,7 @@ services:
     command: ["uvicorn","app.main:api","--host","0.0.0.0","--port","8000","--reload"]
     environment:
       DB_DSN: ${DB_DSN}
+      PGOPTIONS: ${PGOPTIONS}
       ALLOW_T: ${ALLOW_T}
       DENY_T:  ${DENY_T}
       SIEM_HIGH_BUMP: ${SIEM_HIGH_BUMP}
@@ -76,6 +78,7 @@ services:
       TRUST_URL: http://trust:8000
       SIEM_URL:  http://siem:8000
       DB_DSN: ${DB_DSN}
+      PGOPTIONS: ${PGOPTIONS}
       TOTP_SECRET: ${TOTP_SECRET}
       # ES via headers (no creds in URL)
       ES_HOST: ${ES_HOST}
@@ -95,6 +98,7 @@ services:
     command: ["uvicorn","app.main:api","--host","0.0.0.0","--port","8000","--reload"]
     environment:
       DB_DSN: ${DB_DSN}
+      PGOPTIONS: ${PGOPTIONS}
       # ES config
       ES_HOST: ${ES_HOST}
       ES_USER: ${ES_USER}
