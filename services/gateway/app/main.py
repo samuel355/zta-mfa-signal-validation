@@ -291,7 +291,41 @@ def decision(payload: ValidateAndDecide):
                 print(f"[GATEWAY] Failed to insert SIEM alert: {ex}")
     # ---------------- Elasticsearch index ----------------
     if decision.lower() in ("step_up", "deny"):
-        index_to_es(session_id, enforcement, risk, decision, reasons, index="siem-alerts")
+        # Map reasons to STRIDE values for Elasticsearch too
+        STRIDE_MAP = {
+            "SPOOFING": "Spoofing",
+            "TLS": "Tampering",
+            "TLS_ANOMALY": "Tampering",
+            "POSTURE": "Tampering",
+            "POSTURE_OUTDATED": "Tampering",
+            "REPUDIATION": "Repudiation",
+            "DOWNLOAD": "InformationDisclosure",
+            "EXFIL": "InformationDisclosure",
+            "DOS": "DoS",
+            "DDOS": "DoS",
+            "POLICY": "EoP",
+            "EOP": "EoP",
+        }
+    
+        stride_value = None
+        for r in reasons:
+            for k, v in STRIDE_MAP.items():
+                if r.upper().startswith(k):
+                    stride_value = v
+                    break
+            if stride_value:
+                break
+        if not stride_value:
+            stride_value = "Spoofing"
+    
+        index_to_es(
+            session_id=session_id,
+            enforcement=enforcement,
+            risk=risk,
+            decision=decision,
+            reasons=[stride_value],   # pass STRIDE value instead of raw reasons
+            index="siem-alerts"
+        )
 
     resp = {
         "session_id": session_id,
