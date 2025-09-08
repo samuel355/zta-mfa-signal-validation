@@ -14,8 +14,8 @@ VALIDATE_URL  = os.getenv("VALIDATE_URL", "http://validation:8000/validate")
 GATEWAY_URL   = os.getenv("GATEWAY_URL",  "http://gateway:8000/decision")
 
 # ------------------- Knobs -------------------
-SLEEP_BETWEEN = float(os.getenv("SIM_SLEEP", "0.6"))
-MAX_ROWS      = int(os.getenv("SIM_MAX_ROWS", "200"))
+SLEEP_BETWEEN = float(os.getenv("SIM_SLEEP", "0.8"))
+MAX_ROWS      = int(os.getenv("SIM_MAX_ROWS", "400"))
 MAX_PER_FILE  = int(os.getenv("SIM_MAX_PER_FILE", "600"))
 BENIGN_KEEP   = float(os.getenv("SIM_BENIGN_KEEP", "0.10"))
 USE_GPS_FROM_WIFI = os.getenv("SIM_USE_GPS_FROM_WIFI","true").lower() in {"1","true","yes","on"}

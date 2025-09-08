@@ -229,7 +229,7 @@ def decision(payload: ValidateAndDecide):
         except Exception as ex:
             persistence = {"ok": False, "error": str(ex)}
 
-    # ---------------- SIEM Persistence ----------------
+
     # ---------------- SIEM Persistence ----------------
     if float(risk) >= 0.25:  # only persist risky events
         eng = get_engine()
@@ -289,6 +289,7 @@ def decision(payload: ValidateAndDecide):
                 print(f"[GATEWAY] SIEM alert inserted for {session_id} (stride={stride_value}, risk={risk})")
             except Exception as ex:
                 print(f"[GATEWAY] Failed to insert SIEM alert: {ex}")
+                
     # ---------------- Elasticsearch index ----------------
     if decision.lower() in ("step_up", "deny"):
         # Map reasons to STRIDE values for Elasticsearch too
@@ -318,6 +319,18 @@ def decision(payload: ValidateAndDecide):
         if not stride_value:
             stride_value = "Spoofing"
     
+    
+        # Always index MFA events
+        index_to_es(
+            session_id,
+            enforcement,
+            risk,
+            decision,
+            reasons + [stride_value],   # keep reasons + stride
+            index="mfa-events"
+        )
+        
+        #Risky events also gets to siem
         index_to_es(
             session_id=session_id,
             enforcement=enforcement,

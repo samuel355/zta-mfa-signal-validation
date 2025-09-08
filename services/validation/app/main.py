@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
 import os, json
+import httpx
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from app.enrichment import enrich_all, DATA_STATUS
@@ -159,4 +160,40 @@ def validate(payload: SignalPayload):
             persistence={"ok": True}
         except Exception as ex:
             persistence={"ok": False, "error": str(ex)}
+        
+        # --- Send validated context to Elasticsearch ---
+        try:
+            from datetime import datetime
+            es_host = os.getenv("ES_HOST", "http://elasticsearch:9200").rstrip("/")
+            es_user = os.getenv("ES_USER", "")
+            es_pass = os.getenv("ES_PASS", "")
+            es_api_key = os.getenv("ES_API_KEY", "")
+            es_index = os.getenv("ES_VALIDATED_INDEX", "validated-context")
+    
+            doc = {
+                "@timestamp": datetime.utcnow().isoformat(),
+                "session_id": v["vector"].get("session_id"),
+                "signals": payload.signals,
+                "weights": w,
+                "quality": q,
+                "cross_checks": x,
+                "enrichment": e,
+                "reasons": reasons,
+            }
+    
+            headers = {"content-type": "application/json"}
+            auth = None
+            if es_api_key:
+                headers["Authorization"] = f"ApiKey {es_api_key}"
+            elif es_user and es_pass:
+                auth = httpx.BasicAuth(es_user, es_pass)
+    
+            with httpx.Client(timeout=5, headers=headers, auth=auth) as c:
+                r = c.post(f"{es_host}/{es_index}/_doc", json=doc)
+                r.raise_for_status()
+                print(f"[VALIDATION] Indexed validated context into {es_index}")
+        except Exception as ex:
+            print(f"[VALIDATION] Failed to index validated context: {ex}")
+                
+      
     return {"validated": v, "quality": q, "cross": x, "enrichment": e, "persistence": persistence}

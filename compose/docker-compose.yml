@@ -47,6 +47,13 @@ services:
       PATH_WIFI:  /data/wifi/wigle_sample.csv
       PATH_TLS:   /data/tls/ja3_fingerprints.csv
       PATH_DEV:   /data/device_posture/device_posture.csv
+      
+      # ES via headers (no creds in URL)
+      ES_HOST: ${ES_HOST}
+      ES_USER: ${ES_USER}
+      ES_PASS: ${ES_PASS}
+      ES_API_KEY: ${ES_API_KEY}
+      ES_VALIDATED_INDEX: ${ES_VALIDATED_INDEX}
     volumes:
       - ../data:/data:ro
     ports: ["8001:8000"]
