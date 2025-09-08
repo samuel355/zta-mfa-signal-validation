@@ -14,12 +14,25 @@ SIEM_URL  = os.getenv("SIEM_URL",  "http://siem:8000")
 _engine: Optional[Engine] = None
 
 # -------------------- Elasticsearch --------------------
-def index_to_es(session_id: str, enforcement: str, risk: float, decision: str, reasons: list[str] | None):
+def index_to_es(
+    session_id: str,
+    enforcement: str,
+    risk: float,
+    decision: str,
+    reasons: list[str] | None,
+    index: Optional[str] = None
+):
+    """
+    Index MFA events (default) or SIEM alerts into Elasticsearch.
+    Pass `index="siem-alerts"` to store alerts separately.
+    """
     es_host = os.getenv("ES_HOST", "http://elasticsearch:9200").rstrip("/")
     es_user = os.getenv("ES_USER", "")
     es_pass = os.getenv("ES_PASS", "")
     es_api_key = os.getenv("ES_API_KEY", "")
-    es_index = os.getenv("ES_MFA_INDEX", "mfa-events")
+    default_index = os.getenv("ES_MFA_INDEX", "mfa-events")
+    es_index = index or default_index
+
     if not es_host:
         print("[ES_INDEX] ES_HOST not set; skipping")
         return
@@ -43,10 +56,12 @@ def index_to_es(session_id: str, enforcement: str, risk: float, decision: str, r
 
     try:
         with httpx.Client(timeout=5, headers=headers, auth=auth) as c:
-            c.post(f"{es_host}/{es_index}/_doc", json=doc)
+            r = c.post(f"{es_host}/{es_index}/_doc", json=doc)
+            r.raise_for_status()
+            print(f"[ES_INDEX] Indexed doc into {es_index}")
     except Exception as e:
-        print(f"[ES_INDEX] failed: {e}")
-
+        print(f"[ES_INDEX] failed for {es_index}: {e}")
+        
 # -------------------- DB --------------------
 def _mask_dsn(dsn: str) -> str:
     try:
@@ -276,7 +291,7 @@ def decision(payload: ValidateAndDecide):
                 print(f"[GATEWAY] Failed to insert SIEM alert: {ex}")
     # ---------------- Elasticsearch index ----------------
     if decision.lower() in ("step_up", "deny"):
-        index_to_es(session_id, enforcement, risk, decision, reasons)
+        index_to_es(session_id, enforcement, risk, decision, reasons, index="siem-alerts")
 
     resp = {
         "session_id": session_id,
