@@ -67,13 +67,17 @@ def compute_reasons(signals: Dict[str, Any], enr: Dict[str, Any]) -> list[str]:
         if "BOT" in L or "INFILTRATION" in L:
             R.append("DOWNLOAD_EXFIL")           # Information Disclosure
         if "HEARTBLEED" in L:
-            R.append("TLS_ANOMALY")              # Tampering
+            R.append("TLS_ANOMALY")      
+        if "Heartbleed" in L:
+            R.append("TLS_ANOMALY") 
+        if "Infiltration" in L:
+            R.append("INFORMATION_DISCLOSURE")                # Tampering
 
     # Spoofing (GPS vs Wi-Fi/IP distance)
     dist = ((enr.get("checks") or {}).get("ip_wifi_distance_km"))
     try:
         if isinstance(dist, (int, float)) and dist > 50.0:
-            R.extend(["GPS_MISMATCH","WIFI_MISMATCH"])
+            R.extend(["SPOOFING", "GPS_MISMATCH","WIFI_MISMATCH"])
     except Exception: pass
 
     # Tampering via TLS / posture
