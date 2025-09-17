@@ -1,0 +1,4235 @@
+{
+  "baseline_decisions": [
+    {
+      "session_id": "mock-1758131558-5329",
+      "decision": "allow",
+      "risk_score": 0.188,
+      "factors": [
+        "DDOS"
+      ],
+      "device_fingerprint": "device-5727",
+      "original_signals": {
+        "ip": "192.168.201.51",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T11:52:38.699044"
+      },
+      "created_at": "2025-09-16 04:44:38.699082"
+    },
+    {
+      "session_id": "mock-1758131558-8521",
+      "decision": "step_up",
+      "risk_score": 0.605,
+      "factors": [
+        "WEB_ATTACK"
+      ],
+      "device_fingerprint": "device-2455",
+      "original_signals": {
+        "ip": "192.168.138.170",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T20:52:38.699122"
+      },
+      "created_at": "2025-09-17 06:26:38.699129"
+    },
+    {
+      "session_id": "mock-1758131558-4919",
+      "decision": "allow",
+      "risk_score": 0.16,
+      "factors": [
+        "UNKNOWN_DEVICE"
+      ],
+      "device_fingerprint": "device-4782",
+      "original_signals": {
+        "ip": "192.168.252.238",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T07:52:38.699153"
+      },
+      "created_at": "2025-09-16 05:43:38.699158"
+    },
+    {
+      "session_id": "mock-1758131558-1057",
+      "decision": "step_up",
+      "risk_score": 0.495,
+      "factors": [
+        "WEB_ATTACK",
+        "OUTSIDE_HOURS"
+      ],
+      "device_fingerprint": "device-2054",
+      "original_signals": {
+        "ip": "192.168.132.129",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T06:52:38.699178"
+      },
+      "created_at": "2025-09-15 22:02:38.699184"
+    },
+    {
+      "session_id": "mock-1758131558-6957",
+      "decision": "allow",
+      "risk_score": 0.156,
+      "factors": [
+        "LOCATION_ANOMALY"
+      ],
+      "device_fingerprint": "device-9822",
+      "original_signals": {
+        "ip": "192.168.154.91",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T12:52:38.699201"
+      },
+      "created_at": "2025-09-16 15:38:38.699206"
+    },
+    {
+      "session_id": "mock-1758131558-2103",
+      "decision": "deny",
+      "risk_score": 0.904,
+      "factors": [
+        "DDOS",
+        "UNKNOWN_DEVICE",
+        "LOCATION_ANOMALY",
+        "BOT",
+        "WEB_ATTACK"
+      ],
+      "device_fingerprint": "device-8117",
+      "original_signals": {
+        "ip": "192.168.36.70",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T00:52:38.699225"
+      },
+      "created_at": "2025-09-17 04:54:38.699230"
+    },
+    {
+      "session_id": "mock-1758131558-6585",
+      "decision": "step_up",
+      "risk_score": 0.545,
+      "factors": [
+        "BOT",
+        "OUTSIDE_HOURS"
+      ],
+      "device_fingerprint": "device-3746",
+      "original_signals": {
+        "ip": "192.168.123.214",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T00:52:38.699251"
+      },
+      "created_at": "2025-09-16 18:13:38.699257"
+    },
+    {
+      "session_id": "mock-1758131558-1968",
+      "decision": "step_up",
+      "risk_score": 0.667,
+      "factors": [
+        "BOT",
+        "DDOS"
+      ],
+      "device_fingerprint": "device-9709",
+      "original_signals": {
+        "ip": "192.168.110.1",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T18:52:38.699272"
+      },
+      "created_at": "2025-09-16 07:46:38.699277"
+    },
+    {
+      "session_id": "mock-1758131558-1845",
+      "decision": "allow",
+      "risk_score": 0.108,
+      "factors": [],
+      "device_fingerprint": "device-7781",
+      "original_signals": {
+        "ip": "192.168.178.146",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T12:52:38.699291"
+      },
+      "created_at": "2025-09-16 12:45:38.699295"
+    },
+    {
+      "session_id": "mock-1758131558-6379",
+      "decision": "step_up",
+      "risk_score": 0.396,
+      "factors": [
+        "DDOS",
+        "BOT"
+      ],
+      "device_fingerprint": "device-8956",
+      "original_signals": {
+        "ip": "192.168.106.182",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T15:52:38.699309"
+      },
+      "created_at": "2025-09-17 05:04:38.699314"
+    },
+    {
+      "session_id": "mock-1758131558-5020",
+      "decision": "allow",
+      "risk_score": 0.221,
+      "factors": [],
+      "device_fingerprint": "device-9643",
+      "original_signals": {
+        "ip": "192.168.30.189",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T13:52:38.699326"
+      },
+      "created_at": "2025-09-16 01:21:38.699331"
+    },
+    {
+      "session_id": "mock-1758131558-5347",
+      "decision": "allow",
+      "risk_score": 0.246,
+      "factors": [],
+      "device_fingerprint": "device-3494",
+      "original_signals": {
+        "ip": "192.168.5.214",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T20:52:38.699344"
+      },
+      "created_at": "2025-09-16 10:14:38.699348"
+    },
+    {
+      "session_id": "mock-1758131558-8681",
+      "decision": "deny",
+      "risk_score": 0.726,
+      "factors": [
+        "BOT",
+        "UNKNOWN_DEVICE",
+        "DDOS",
+        "LOCATION_ANOMALY",
+        "WEB_ATTACK"
+      ],
+      "device_fingerprint": "device-8449",
+      "original_signals": {
+        "ip": "192.168.164.102",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T19:52:38.699364"
+      },
+      "created_at": "2025-09-16 08:57:38.699368"
+    },
+    {
+      "session_id": "mock-1758131558-7475",
+      "decision": "allow",
+      "risk_score": 0.157,
+      "factors": [
+        "LOCATION_ANOMALY"
+      ],
+      "device_fingerprint": "device-7626",
+      "original_signals": {
+        "ip": "192.168.97.128",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T21:52:38.699382"
+      },
+      "created_at": "2025-09-17 14:59:38.699386"
+    },
+    {
+      "session_id": "mock-1758131558-5646",
+      "decision": "allow",
+      "risk_score": 0.17,
+      "factors": [
+        "TLS_VULNERABILITY"
+      ],
+      "device_fingerprint": "device-8984",
+      "original_signals": {
+        "ip": "192.168.227.205",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T22:52:38.699400"
+      },
+      "created_at": "2025-09-17 15:23:38.699404"
+    },
+    {
+      "session_id": "mock-1758131558-7702",
+      "decision": "allow",
+      "risk_score": 0.206,
+      "factors": [
+        "SUSPICIOUS_IP",
+        "BOT"
+      ],
+      "device_fingerprint": "device-2202",
+      "original_signals": {
+        "ip": "192.168.220.18",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T11:52:38.699418"
+      },
+      "created_at": "2025-09-16 09:34:38.699422"
+    },
+    {
+      "session_id": "mock-1758131558-5555",
+      "decision": "allow",
+      "risk_score": 0.192,
+      "factors": [],
+      "device_fingerprint": "device-4031",
+      "original_signals": {
+        "ip": "192.168.214.232",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T19:52:38.699437"
+      },
+      "created_at": "2025-09-17 13:42:38.699441"
+    },
+    {
+      "session_id": "mock-1758131558-3389",
+      "decision": "step_up",
+      "risk_score": 0.421,
+      "factors": [
+        "UNKNOWN_DEVICE"
+      ],
+      "device_fingerprint": "device-9939",
+      "original_signals": {
+        "ip": "192.168.90.10",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T04:52:38.699457"
+      },
+      "created_at": "2025-09-16 11:44:38.699461"
+    },
+    {
+      "session_id": "mock-1758131558-4900",
+      "decision": "step_up",
+      "risk_score": 0.425,
+      "factors": [
+        "TLS_VULNERABILITY",
+        "UNKNOWN_DEVICE",
+        "DDOS"
+      ],
+      "device_fingerprint": "device-8484",
+      "original_signals": {
+        "ip": "192.168.214.89",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T23:52:38.699475"
+      },
+      "created_at": "2025-09-17 09:02:38.699480"
+    },
+    {
+      "session_id": "mock-1758131558-5762",
+      "decision": "deny",
+      "risk_score": 0.893,
+      "factors": [
+        "UNKNOWN_DEVICE",
+        "DDOS",
+        "LOCATION_ANOMALY",
+        "MULTIPLE_FAILURES"
+      ],
+      "device_fingerprint": "device-6802",
+      "original_signals": {
+        "ip": "192.168.157.187",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T09:52:38.699494"
+      },
+      "created_at": "2025-09-16 02:41:38.699498"
+    },
+    {
+      "session_id": "mock-1758131558-8269",
+      "decision": "allow",
+      "risk_score": 0.121,
+      "factors": [],
+      "device_fingerprint": "device-7750",
+      "original_signals": {
+        "ip": "192.168.60.224",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T07:52:38.699510"
+      },
+      "created_at": "2025-09-17 09:37:38.699514"
+    },
+    {
+      "session_id": "mock-1758131558-7764",
+      "decision": "step_up",
+      "risk_score": 0.415,
+      "factors": [
+        "MULTIPLE_FAILURES"
+      ],
+      "device_fingerprint": "device-4091",
+      "original_signals": {
+        "ip": "192.168.179.106",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T02:52:38.699526"
+      },
+      "created_at": "2025-09-17 01:22:38.699531"
+    },
+    {
+      "session_id": "mock-1758131558-2384",
+      "decision": "allow",
+      "risk_score": 0.169,
+      "factors": [
+        "BOT"
+      ],
+      "device_fingerprint": "device-7512",
+      "original_signals": {
+        "ip": "192.168.44.65",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T20:52:38.699542"
+      },
+      "created_at": "2025-09-16 14:21:38.699547"
+    },
+    {
+      "session_id": "mock-1758131558-5920",
+      "decision": "deny",
+      "risk_score": 0.947,
+      "factors": [
+        "DDOS",
+        "BOT"
+      ],
+      "device_fingerprint": "device-2078",
+      "original_signals": {
+        "ip": "192.168.205.68",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T09:52:38.699559"
+      },
+      "created_at": "2025-09-17 03:33:38.699563"
+    },
+    {
+      "session_id": "mock-1758131558-9963",
+      "decision": "step_up",
+      "risk_score": 0.601,
+      "factors": [
+        "MULTIPLE_FAILURES",
+        "UNKNOWN_DEVICE",
+        "DDOS"
+      ],
+      "device_fingerprint": "device-6092",
+      "original_signals": {
+        "ip": "192.168.133.56",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T10:52:38.699576"
+      },
+      "created_at": "2025-09-16 20:30:38.699581"
+    },
+    {
+      "session_id": "mock-1758131558-5663",
+      "decision": "allow",
+      "risk_score": 0.063,
+      "factors": [
+        "SUSPICIOUS_IP"
+      ],
+      "device_fingerprint": "device-9521",
+      "original_signals": {
+        "ip": "192.168.196.4",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T14:52:38.699597"
+      },
+      "created_at": "2025-09-17 04:29:38.699601"
+    },
+    {
+      "session_id": "mock-1758131558-8544",
+      "decision": "allow",
+      "risk_score": 0.0,
+      "factors": [
+        "MULTIPLE_FAILURES",
+        "TLS_VULNERABILITY"
+      ],
+      "device_fingerprint": "device-2856",
+      "original_signals": {
+        "ip": "192.168.62.153",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T11:52:38.699618"
+      },
+      "created_at": "2025-09-16 18:53:38.699622"
+    },
+    {
+      "session_id": "mock-1758131558-7961",
+      "decision": "deny",
+      "risk_score": 0.964,
+      "factors": [
+        "SUSPICIOUS_IP",
+        "TLS_VULNERABILITY",
+        "WEB_ATTACK",
+        "BOT"
+      ],
+      "device_fingerprint": "device-1996",
+      "original_signals": {
+        "ip": "192.168.3.27",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T14:52:38.699639"
+      },
+      "created_at": "2025-09-16 13:24:38.699643"
+    },
+    {
+      "session_id": "mock-1758131558-9563",
+      "decision": "step_up",
+      "risk_score": 0.699,
+      "factors": [
+        "SUSPICIOUS_IP"
+      ],
+      "device_fingerprint": "device-6914",
+      "original_signals": {
+        "ip": "192.168.34.162",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T09:52:38.699656"
+      },
+      "created_at": "2025-09-16 15:27:38.699660"
+    },
+    {
+      "session_id": "mock-1758131558-9902",
+      "decision": "deny",
+      "risk_score": 0.795,
+      "factors": [
+        "OUTSIDE_HOURS",
+        "UNKNOWN_DEVICE",
+        "SUSPICIOUS_IP",
+        "BOT"
+      ],
+      "device_fingerprint": "device-1274",
+      "original_signals": {
+        "ip": "192.168.56.140",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T17:52:38.699674"
+      },
+      "created_at": "2025-09-16 23:05:38.699678"
+    },
+    {
+      "session_id": "mock-1758131558-4835",
+      "decision": "allow",
+      "risk_score": 0.218,
+      "factors": [],
+      "device_fingerprint": "device-1158",
+      "original_signals": {
+        "ip": "192.168.209.106",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T17:52:38.699690"
+      },
+      "created_at": "2025-09-15 20:03:38.699694"
+    },
+    {
+      "session_id": "mock-1758131558-3495",
+      "decision": "allow",
+      "risk_score": 0.299,
+      "factors": [],
+      "device_fingerprint": "device-7249",
+      "original_signals": {
+        "ip": "192.168.146.114",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T18:52:38.699706"
+      },
+      "created_at": "2025-09-17 03:58:38.699711"
+    },
+    {
+      "session_id": "mock-1758131558-5900",
+      "decision": "step_up",
+      "risk_score": 0.671,
+      "factors": [
+        "SUSPICIOUS_IP",
+        "OUTSIDE_HOURS",
+        "MULTIPLE_FAILURES",
+        "LOCATION_ANOMALY"
+      ],
+      "device_fingerprint": "device-3017",
+      "original_signals": {
+        "ip": "192.168.82.162",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T21:52:38.699725"
+      },
+      "created_at": "2025-09-15 23:55:38.699729"
+    },
+    {
+      "session_id": "mock-1758131558-2856",
+      "decision": "step_up",
+      "risk_score": 0.312,
+      "factors": [
+        "MULTIPLE_FAILURES"
+      ],
+      "device_fingerprint": "device-9796",
+      "original_signals": {
+        "ip": "192.168.103.41",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T13:52:38.699742"
+      },
+      "created_at": "2025-09-16 12:34:38.699747"
+    },
+    {
+      "session_id": "mock-1758131558-6486",
+      "decision": "allow",
+      "risk_score": 0.255,
+      "factors": [
+        "UNKNOWN_DEVICE"
+      ],
+      "device_fingerprint": "device-5152",
+      "original_signals": {
+        "ip": "192.168.228.1",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T17:52:38.699765"
+      },
+      "created_at": "2025-09-17 05:59:38.699770"
+    },
+    {
+      "session_id": "mock-1758131558-8075",
+      "decision": "allow",
+      "risk_score": 0.142,
+      "factors": [
+        "TLS_VULNERABILITY",
+        "SUSPICIOUS_IP"
+      ],
+      "device_fingerprint": "device-6970",
+      "original_signals": {
+        "ip": "192.168.149.43",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T21:52:38.699783"
+      },
+      "created_at": "2025-09-15 23:39:38.699788"
+    },
+    {
+      "session_id": "mock-1758131558-4384",
+      "decision": "allow",
+      "risk_score": 0.104,
+      "factors": [
+        "MULTIPLE_FAILURES"
+      ],
+      "device_fingerprint": "device-1081",
+      "original_signals": {
+        "ip": "192.168.212.95",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T11:52:38.699800"
+      },
+      "created_at": "2025-09-16 15:39:38.699804"
+    },
+    {
+      "session_id": "mock-1758131558-4011",
+      "decision": "step_up",
+      "risk_score": 0.591,
+      "factors": [
+        "DDOS",
+        "BOT",
+        "WEB_ATTACK",
+        "UNKNOWN_DEVICE"
+      ],
+      "device_fingerprint": "device-7597",
+      "original_signals": {
+        "ip": "192.168.132.23",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T04:52:38.699818"
+      },
+      "created_at": "2025-09-15 23:19:38.699823"
+    },
+    {
+      "session_id": "mock-1758131558-4178",
+      "decision": "allow",
+      "risk_score": 0.079,
+      "factors": [
+        "DDOS",
+        "SUSPICIOUS_IP"
+      ],
+      "device_fingerprint": "device-4322",
+      "original_signals": {
+        "ip": "192.168.58.35",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T01:52:38.699835"
+      },
+      "created_at": "2025-09-17 00:12:38.699840"
+    },
+    {
+      "session_id": "mock-1758131558-3165",
+      "decision": "allow",
+      "risk_score": 0.269,
+      "factors": [
+        "SUSPICIOUS_IP"
+      ],
+      "device_fingerprint": "device-6530",
+      "original_signals": {
+        "ip": "192.168.36.100",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T21:52:38.699852"
+      },
+      "created_at": "2025-09-15 20:45:38.699856"
+    },
+    {
+      "session_id": "mock-1758131558-8729",
+      "decision": "allow",
+      "risk_score": 0.109,
+      "factors": [],
+      "device_fingerprint": "device-1918",
+      "original_signals": {
+        "ip": "192.168.105.250",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T08:52:38.699869"
+      },
+      "created_at": "2025-09-17 00:21:38.699873"
+    },
+    {
+      "session_id": "mock-1758131558-3685",
+      "decision": "allow",
+      "risk_score": 0.072,
+      "factors": [
+        "SUSPICIOUS_IP"
+      ],
+      "device_fingerprint": "device-2585",
+      "original_signals": {
+        "ip": "192.168.186.253",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T04:52:38.699885"
+      },
+      "created_at": "2025-09-17 15:58:38.699890"
+    },
+    {
+      "session_id": "mock-1758131558-9166",
+      "decision": "allow",
+      "risk_score": 0.035,
+      "factors": [
+        "TLS_VULNERABILITY"
+      ],
+      "device_fingerprint": "device-4909",
+      "original_signals": {
+        "ip": "192.168.235.106",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T13:52:38.699906"
+      },
+      "created_at": "2025-09-17 10:38:38.699911"
+    },
+    {
+      "session_id": "mock-1758131558-3842",
+      "decision": "step_up",
+      "risk_score": 0.404,
+      "factors": [
+        "MULTIPLE_FAILURES",
+        "OUTSIDE_HOURS",
+        "DDOS"
+      ],
+      "device_fingerprint": "device-1723",
+      "original_signals": {
+        "ip": "192.168.176.235",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T04:52:38.699924"
+      },
+      "created_at": "2025-09-17 08:15:38.699933"
+    },
+    {
+      "session_id": "mock-1758131558-3692",
+      "decision": "step_up",
+      "risk_score": 0.367,
+      "factors": [
+        "SUSPICIOUS_IP",
+        "UNKNOWN_DEVICE",
+        "DDOS",
+        "MULTIPLE_FAILURES"
+      ],
+      "device_fingerprint": "device-7950",
+      "original_signals": {
+        "ip": "192.168.252.173",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T11:52:38.699947"
+      },
+      "created_at": "2025-09-16 23:32:38.699951"
+    },
+    {
+      "session_id": "mock-1758131558-6800",
+      "decision": "allow",
+      "risk_score": 0.026,
+      "factors": [
+        "SUSPICIOUS_IP"
+      ],
+      "device_fingerprint": "device-8108",
+      "original_signals": {
+        "ip": "192.168.62.249",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T05:52:38.699963"
+      },
+      "created_at": "2025-09-17 16:56:38.699967"
+    },
+    {
+      "session_id": "mock-1758131558-1713",
+      "decision": "step_up",
+      "risk_score": 0.639,
+      "factors": [
+        "SUSPICIOUS_IP",
+        "TLS_VULNERABILITY"
+      ],
+      "device_fingerprint": "device-4554",
+      "original_signals": {
+        "ip": "192.168.58.7",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T18:52:38.699981"
+      },
+      "created_at": "2025-09-17 02:11:38.699985"
+    },
+    {
+      "session_id": "mock-1758131558-9988",
+      "decision": "allow",
+      "risk_score": 0.162,
+      "factors": [
+        "WEB_ATTACK",
+        "DDOS"
+      ],
+      "device_fingerprint": "device-6394",
+      "original_signals": {
+        "ip": "192.168.11.185",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T00:52:38.699998"
+      },
+      "created_at": "2025-09-17 09:59:38.700002"
+    },
+    {
+      "session_id": "mock-1758131558-4269",
+      "decision": "allow",
+      "risk_score": 0.048,
+      "factors": [
+        "OUTSIDE_HOURS",
+        "WEB_ATTACK"
+      ],
+      "device_fingerprint": "device-9676",
+      "original_signals": {
+        "ip": "192.168.56.163",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T13:52:38.700015"
+      },
+      "created_at": "2025-09-15 23:58:38.700019"
+    },
+    {
+      "session_id": "mock-1758131558-3073",
+      "decision": "step_up",
+      "risk_score": 0.396,
+      "factors": [
+        "LOCATION_ANOMALY",
+        "TLS_VULNERABILITY",
+        "MULTIPLE_FAILURES",
+        "SUSPICIOUS_IP"
+      ],
+      "device_fingerprint": "device-4745",
+      "original_signals": {
+        "ip": "192.168.20.53",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T01:52:38.700033"
+      },
+      "created_at": "2025-09-16 18:37:38.700037"
+    },
+    {
+      "session_id": "mock-1758131558-7630",
+      "decision": "allow",
+      "risk_score": 0.196,
+      "factors": [
+        "UNKNOWN_DEVICE"
+      ],
+      "device_fingerprint": "device-7721",
+      "original_signals": {
+        "ip": "192.168.132.29",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T11:52:38.700051"
+      },
+      "created_at": "2025-09-17 15:35:38.700056"
+    },
+    {
+      "session_id": "mock-1758131558-4973",
+      "decision": "step_up",
+      "risk_score": 0.604,
+      "factors": [
+        "TLS_VULNERABILITY",
+        "OUTSIDE_HOURS",
+        "LOCATION_ANOMALY"
+      ],
+      "device_fingerprint": "device-3064",
+      "original_signals": {
+        "ip": "192.168.151.180",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T14:52:38.700069"
+      },
+      "created_at": "2025-09-16 03:28:38.700073"
+    },
+    {
+      "session_id": "mock-1758131558-1657",
+      "decision": "allow",
+      "risk_score": 0.192,
+      "factors": [
+        "UNKNOWN_DEVICE",
+        "DDOS"
+      ],
+      "device_fingerprint": "device-8796",
+      "original_signals": {
+        "ip": "192.168.96.37",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T23:52:38.700086"
+      },
+      "created_at": "2025-09-16 05:45:38.700093"
+    },
+    {
+      "session_id": "mock-1758131558-5640",
+      "decision": "deny",
+      "risk_score": 0.881,
+      "factors": [
+        "DDOS",
+        "OUTSIDE_HOURS",
+        "UNKNOWN_DEVICE",
+        "BOT",
+        "TLS_VULNERABILITY",
+        "SUSPICIOUS_IP"
+      ],
+      "device_fingerprint": "device-1402",
+      "original_signals": {
+        "ip": "192.168.183.7",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T22:52:38.700117"
+      },
+      "created_at": "2025-09-15 22:08:38.700122"
+    },
+    {
+      "session_id": "mock-1758131558-2500",
+      "decision": "allow",
+      "risk_score": 0.161,
+      "factors": [
+        "BOT"
+      ],
+      "device_fingerprint": "device-2790",
+      "original_signals": {
+        "ip": "192.168.206.226",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T00:52:38.700138"
+      },
+      "created_at": "2025-09-17 02:24:38.700143"
+    },
+    {
+      "session_id": "mock-1758131558-7305",
+      "decision": "allow",
+      "risk_score": 0.06,
+      "factors": [
+        "DDOS"
+      ],
+      "device_fingerprint": "device-4181",
+      "original_signals": {
+        "ip": "192.168.97.130",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T22:52:38.700155"
+      },
+      "created_at": "2025-09-16 23:30:38.700159"
+    },
+    {
+      "session_id": "mock-1758131558-5850",
+      "decision": "step_up",
+      "risk_score": 0.357,
+      "factors": [
+        "SUSPICIOUS_IP",
+        "UNKNOWN_DEVICE",
+        "MULTIPLE_FAILURES"
+      ],
+      "device_fingerprint": "device-7910",
+      "original_signals": {
+        "ip": "192.168.169.52",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T05:52:38.700172"
+      },
+      "created_at": "2025-09-16 08:55:38.700176"
+    },
+    {
+      "session_id": "mock-1758131558-2158",
+      "decision": "step_up",
+      "risk_score": 0.693,
+      "factors": [
+        "MULTIPLE_FAILURES"
+      ],
+      "device_fingerprint": "device-4133",
+      "original_signals": {
+        "ip": "192.168.209.150",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T03:52:38.700190"
+      },
+      "created_at": "2025-09-16 05:35:38.700195"
+    },
+    {
+      "session_id": "mock-1758131558-4803",
+      "decision": "step_up",
+      "risk_score": 0.385,
+      "factors": [
+        "MULTIPLE_FAILURES",
+        "SUSPICIOUS_IP",
+        "DDOS"
+      ],
+      "device_fingerprint": "device-7859",
+      "original_signals": {
+        "ip": "192.168.162.225",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T02:52:38.700208"
+      },
+      "created_at": "2025-09-17 14:40:38.700212"
+    },
+    {
+      "session_id": "mock-1758131558-9694",
+      "decision": "allow",
+      "risk_score": 0.152,
+      "factors": [],
+      "device_fingerprint": "device-6642",
+      "original_signals": {
+        "ip": "192.168.150.38",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T23:52:38.700224"
+      },
+      "created_at": "2025-09-17 05:18:38.700228"
+    },
+    {
+      "session_id": "mock-1758131558-9840",
+      "decision": "deny",
+      "risk_score": 0.786,
+      "factors": [
+        "BOT",
+        "MULTIPLE_FAILURES",
+        "SUSPICIOUS_IP",
+        "TLS_VULNERABILITY",
+        "DDOS"
+      ],
+      "device_fingerprint": "device-1063",
+      "original_signals": {
+        "ip": "192.168.93.150",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T14:52:38.700242"
+      },
+      "created_at": "2025-09-16 20:52:38.700246"
+    },
+    {
+      "session_id": "mock-1758131558-4605",
+      "decision": "allow",
+      "risk_score": 0.257,
+      "factors": [
+        "TLS_VULNERABILITY"
+      ],
+      "device_fingerprint": "device-4700",
+      "original_signals": {
+        "ip": "192.168.72.213",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T22:52:38.700259"
+      },
+      "created_at": "2025-09-17 11:13:38.700263"
+    },
+    {
+      "session_id": "mock-1758131558-3251",
+      "decision": "deny",
+      "risk_score": 0.844,
+      "factors": [
+        "WEB_ATTACK",
+        "SUSPICIOUS_IP"
+      ],
+      "device_fingerprint": "device-6769",
+      "original_signals": {
+        "ip": "192.168.24.243",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T15:52:38.700283"
+      },
+      "created_at": "2025-09-16 09:56:38.700288"
+    },
+    {
+      "session_id": "mock-1758131558-6904",
+      "decision": "allow",
+      "risk_score": 0.219,
+      "factors": [
+        "DDOS"
+      ],
+      "device_fingerprint": "device-4012",
+      "original_signals": {
+        "ip": "192.168.169.183",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T02:52:38.700302"
+      },
+      "created_at": "2025-09-16 08:29:38.700307"
+    },
+    {
+      "session_id": "mock-1758131558-4218",
+      "decision": "allow",
+      "risk_score": 0.086,
+      "factors": [],
+      "device_fingerprint": "device-4450",
+      "original_signals": {
+        "ip": "192.168.237.153",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T07:52:38.700321"
+      },
+      "created_at": "2025-09-17 10:47:38.700326"
+    },
+    {
+      "session_id": "mock-1758131558-4500",
+      "decision": "allow",
+      "risk_score": 0.098,
+      "factors": [
+        "UNKNOWN_DEVICE"
+      ],
+      "device_fingerprint": "device-2155",
+      "original_signals": {
+        "ip": "192.168.164.86",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T13:52:38.700343"
+      },
+      "created_at": "2025-09-16 19:44:38.700348"
+    },
+    {
+      "session_id": "mock-1758131558-9563",
+      "decision": "step_up",
+      "risk_score": 0.477,
+      "factors": [
+        "BOT",
+        "SUSPICIOUS_IP",
+        "UNKNOWN_DEVICE"
+      ],
+      "device_fingerprint": "device-1849",
+      "original_signals": {
+        "ip": "192.168.171.133",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T05:52:38.700363"
+      },
+      "created_at": "2025-09-17 03:46:38.700367"
+    },
+    {
+      "session_id": "mock-1758131558-4620",
+      "decision": "allow",
+      "risk_score": 0.033,
+      "factors": [
+        "OUTSIDE_HOURS",
+        "DDOS"
+      ],
+      "device_fingerprint": "device-3540",
+      "original_signals": {
+        "ip": "192.168.53.101",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T17:52:38.700382"
+      },
+      "created_at": "2025-09-17 03:01:38.700387"
+    },
+    {
+      "session_id": "mock-1758131558-3839",
+      "decision": "deny",
+      "risk_score": 0.863,
+      "factors": [
+        "UNKNOWN_DEVICE",
+        "MULTIPLE_FAILURES"
+      ],
+      "device_fingerprint": "device-3880",
+      "original_signals": {
+        "ip": "192.168.198.132",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T01:52:38.700401"
+      },
+      "created_at": "2025-09-16 10:40:38.700406"
+    },
+    {
+      "session_id": "mock-1758131558-9807",
+      "decision": "allow",
+      "risk_score": 0.228,
+      "factors": [],
+      "device_fingerprint": "device-2384",
+      "original_signals": {
+        "ip": "192.168.240.24",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T23:52:38.700420"
+      },
+      "created_at": "2025-09-16 22:16:38.700425"
+    },
+    {
+      "session_id": "mock-1758131558-1281",
+      "decision": "allow",
+      "risk_score": 0.227,
+      "factors": [],
+      "device_fingerprint": "device-8359",
+      "original_signals": {
+        "ip": "192.168.204.66",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T23:52:38.700437"
+      },
+      "created_at": "2025-09-16 22:43:38.700442"
+    },
+    {
+      "session_id": "mock-1758131558-4520",
+      "decision": "allow",
+      "risk_score": 0.043,
+      "factors": [
+        "TLS_VULNERABILITY",
+        "WEB_ATTACK"
+      ],
+      "device_fingerprint": "device-8749",
+      "original_signals": {
+        "ip": "192.168.150.25",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T04:52:38.700457"
+      },
+      "created_at": "2025-09-17 11:38:38.700464"
+    },
+    {
+      "session_id": "mock-1758131558-8528",
+      "decision": "allow",
+      "risk_score": 0.242,
+      "factors": [
+        "OUTSIDE_HOURS",
+        "TLS_VULNERABILITY"
+      ],
+      "device_fingerprint": "device-4055",
+      "original_signals": {
+        "ip": "192.168.133.101",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T12:52:38.700479"
+      },
+      "created_at": "2025-09-17 14:50:38.700483"
+    },
+    {
+      "session_id": "mock-1758131558-1331",
+      "decision": "step_up",
+      "risk_score": 0.497,
+      "factors": [
+        "OUTSIDE_HOURS"
+      ],
+      "device_fingerprint": "device-1231",
+      "original_signals": {
+        "ip": "192.168.107.246",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T12:52:38.700500"
+      },
+      "created_at": "2025-09-17 06:22:38.700504"
+    },
+    {
+      "session_id": "mock-1758131558-8713",
+      "decision": "step_up",
+      "risk_score": 0.551,
+      "factors": [
+        "SUSPICIOUS_IP",
+        "MULTIPLE_FAILURES"
+      ],
+      "device_fingerprint": "device-9009",
+      "original_signals": {
+        "ip": "192.168.250.179",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T12:52:38.700517"
+      },
+      "created_at": "2025-09-16 19:44:38.700521"
+    },
+    {
+      "session_id": "mock-1758131558-2369",
+      "decision": "allow",
+      "risk_score": 0.018,
+      "factors": [
+        "DDOS"
+      ],
+      "device_fingerprint": "device-4624",
+      "original_signals": {
+        "ip": "192.168.37.155",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T11:52:38.700533"
+      },
+      "created_at": "2025-09-16 11:43:38.700537"
+    },
+    {
+      "session_id": "mock-1758131558-1957",
+      "decision": "step_up",
+      "risk_score": 0.617,
+      "factors": [
+        "SUSPICIOUS_IP"
+      ],
+      "device_fingerprint": "device-3237",
+      "original_signals": {
+        "ip": "192.168.61.181",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T20:52:38.700549"
+      },
+      "created_at": "2025-09-16 02:58:38.700553"
+    },
+    {
+      "session_id": "mock-1758131558-1710",
+      "decision": "allow",
+      "risk_score": 0.064,
+      "factors": [
+        "TLS_VULNERABILITY",
+        "DDOS"
+      ],
+      "device_fingerprint": "device-4842",
+      "original_signals": {
+        "ip": "192.168.138.124",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T19:52:38.700568"
+      },
+      "created_at": "2025-09-16 09:40:38.700573"
+    },
+    {
+      "session_id": "mock-1758131558-3943",
+      "decision": "step_up",
+      "risk_score": 0.587,
+      "factors": [
+        "WEB_ATTACK",
+        "UNKNOWN_DEVICE",
+        "OUTSIDE_HOURS"
+      ],
+      "device_fingerprint": "device-7116",
+      "original_signals": {
+        "ip": "192.168.123.106",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T01:52:38.700588"
+      },
+      "created_at": "2025-09-17 08:05:38.700593"
+    },
+    {
+      "session_id": "mock-1758131558-9448",
+      "decision": "allow",
+      "risk_score": 0.104,
+      "factors": [
+        "BOT",
+        "TLS_VULNERABILITY"
+      ],
+      "device_fingerprint": "device-2349",
+      "original_signals": {
+        "ip": "192.168.201.76",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T11:52:38.700605"
+      },
+      "created_at": "2025-09-16 15:16:38.700609"
+    },
+    {
+      "session_id": "mock-1758131558-9152",
+      "decision": "allow",
+      "risk_score": 0.199,
+      "factors": [
+        "LOCATION_ANOMALY"
+      ],
+      "device_fingerprint": "device-6433",
+      "original_signals": {
+        "ip": "192.168.182.162",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T18:52:38.700621"
+      },
+      "created_at": "2025-09-16 11:28:38.700625"
+    },
+    {
+      "session_id": "mock-1758131558-2613",
+      "decision": "allow",
+      "risk_score": 0.273,
+      "factors": [
+        "TLS_VULNERABILITY"
+      ],
+      "device_fingerprint": "device-6540",
+      "original_signals": {
+        "ip": "192.168.100.156",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T19:52:38.700637"
+      },
+      "created_at": "2025-09-17 15:17:38.700641"
+    },
+    {
+      "session_id": "mock-1758131558-8626",
+      "decision": "step_up",
+      "risk_score": 0.629,
+      "factors": [
+        "DDOS",
+        "OUTSIDE_HOURS"
+      ],
+      "device_fingerprint": "device-4410",
+      "original_signals": {
+        "ip": "192.168.180.251",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T16:52:38.700658"
+      },
+      "created_at": "2025-09-16 14:02:38.700663"
+    },
+    {
+      "session_id": "mock-1758131558-3053",
+      "decision": "allow",
+      "risk_score": 0.011,
+      "factors": [
+        "UNKNOWN_DEVICE"
+      ],
+      "device_fingerprint": "device-9397",
+      "original_signals": {
+        "ip": "192.168.47.236",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T19:52:38.700675"
+      },
+      "created_at": "2025-09-17 17:21:38.700680"
+    },
+    {
+      "session_id": "mock-1758131558-9381",
+      "decision": "allow",
+      "risk_score": 0.028,
+      "factors": [
+        "SUSPICIOUS_IP",
+        "BOT"
+      ],
+      "device_fingerprint": "device-1376",
+      "original_signals": {
+        "ip": "192.168.81.172",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T22:52:38.700693"
+      },
+      "created_at": "2025-09-16 03:53:38.700697"
+    },
+    {
+      "session_id": "mock-1758131558-7129",
+      "decision": "step_up",
+      "risk_score": 0.577,
+      "factors": [
+        "LOCATION_ANOMALY",
+        "DDOS"
+      ],
+      "device_fingerprint": "device-6466",
+      "original_signals": {
+        "ip": "192.168.249.247",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T21:52:38.700710"
+      },
+      "created_at": "2025-09-16 14:28:38.700714"
+    },
+    {
+      "session_id": "mock-1758131558-3289",
+      "decision": "allow",
+      "risk_score": 0.024,
+      "factors": [
+        "BOT",
+        "DDOS"
+      ],
+      "device_fingerprint": "device-4169",
+      "original_signals": {
+        "ip": "192.168.194.68",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T17:52:38.700726"
+      },
+      "created_at": "2025-09-17 12:11:38.700730"
+    },
+    {
+      "session_id": "mock-1758131558-4607",
+      "decision": "step_up",
+      "risk_score": 0.501,
+      "factors": [
+        "WEB_ATTACK"
+      ],
+      "device_fingerprint": "device-1850",
+      "original_signals": {
+        "ip": "192.168.127.35",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T13:52:38.700743"
+      },
+      "created_at": "2025-09-16 06:13:38.700747"
+    },
+    {
+      "session_id": "mock-1758131558-4455",
+      "decision": "step_up",
+      "risk_score": 0.404,
+      "factors": [
+        "OUTSIDE_HOURS",
+        "UNKNOWN_DEVICE",
+        "SUSPICIOUS_IP",
+        "DDOS"
+      ],
+      "device_fingerprint": "device-5640",
+      "original_signals": {
+        "ip": "192.168.119.43",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T21:52:38.700760"
+      },
+      "created_at": "2025-09-17 17:19:38.700765"
+    },
+    {
+      "session_id": "mock-1758131558-2771",
+      "decision": "allow",
+      "risk_score": 0.05,
+      "factors": [
+        "UNKNOWN_DEVICE"
+      ],
+      "device_fingerprint": "device-6629",
+      "original_signals": {
+        "ip": "192.168.198.216",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T16:52:38.700777"
+      },
+      "created_at": "2025-09-17 12:41:38.700781"
+    },
+    {
+      "session_id": "mock-1758131558-7977",
+      "decision": "allow",
+      "risk_score": 0.073,
+      "factors": [
+        "UNKNOWN_DEVICE",
+        "OUTSIDE_HOURS"
+      ],
+      "device_fingerprint": "device-8741",
+      "original_signals": {
+        "ip": "192.168.87.110",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T14:52:38.700793"
+      },
+      "created_at": "2025-09-17 00:59:38.700797"
+    },
+    {
+      "session_id": "mock-1758131558-6976",
+      "decision": "allow",
+      "risk_score": 0.279,
+      "factors": [
+        "WEB_ATTACK"
+      ],
+      "device_fingerprint": "device-8282",
+      "original_signals": {
+        "ip": "192.168.232.140",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T05:52:38.700809"
+      },
+      "created_at": "2025-09-16 12:08:38.700814"
+    },
+    {
+      "session_id": "mock-1758131558-2676",
+      "decision": "allow",
+      "risk_score": 0.02,
+      "factors": [],
+      "device_fingerprint": "device-5509",
+      "original_signals": {
+        "ip": "192.168.223.119",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T09:52:38.700825"
+      },
+      "created_at": "2025-09-16 23:41:38.700829"
+    },
+    {
+      "session_id": "mock-1758131558-3725",
+      "decision": "step_up",
+      "risk_score": 0.569,
+      "factors": [
+        "WEB_ATTACK",
+        "MULTIPLE_FAILURES"
+      ],
+      "device_fingerprint": "device-5929",
+      "original_signals": {
+        "ip": "192.168.187.18",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T01:52:38.700848"
+      },
+      "created_at": "2025-09-16 04:45:38.700852"
+    },
+    {
+      "session_id": "mock-1758131558-1103",
+      "decision": "allow",
+      "risk_score": 0.034,
+      "factors": [
+        "BOT"
+      ],
+      "device_fingerprint": "device-3993",
+      "original_signals": {
+        "ip": "192.168.99.225",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-15T20:52:38.700864"
+      },
+      "created_at": "2025-09-16 06:03:38.700868"
+    },
+    {
+      "session_id": "mock-1758131558-8800",
+      "decision": "deny",
+      "risk_score": 0.881,
+      "factors": [
+        "SUSPICIOUS_IP",
+        "WEB_ATTACK",
+        "OUTSIDE_HOURS",
+        "UNKNOWN_DEVICE"
+      ],
+      "device_fingerprint": "device-1237",
+      "original_signals": {
+        "ip": "192.168.137.177",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T10:52:38.700881"
+      },
+      "created_at": "2025-09-15 19:10:38.700886"
+    },
+    {
+      "session_id": "mock-1758131558-8967",
+      "decision": "allow",
+      "risk_score": 0.183,
+      "factors": [],
+      "device_fingerprint": "device-2571",
+      "original_signals": {
+        "ip": "192.168.86.192",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T10:52:38.700897"
+      },
+      "created_at": "2025-09-16 18:37:38.700901"
+    },
+    {
+      "session_id": "mock-1758131558-5789",
+      "decision": "allow",
+      "risk_score": 0.297,
+      "factors": [],
+      "device_fingerprint": "device-5399",
+      "original_signals": {
+        "ip": "192.168.166.247",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T12:52:38.700913"
+      },
+      "created_at": "2025-09-17 05:03:38.700917"
+    },
+    {
+      "session_id": "mock-1758131558-4047",
+      "decision": "step_up",
+      "risk_score": 0.601,
+      "factors": [
+        "UNKNOWN_DEVICE"
+      ],
+      "device_fingerprint": "device-2129",
+      "original_signals": {
+        "ip": "192.168.207.124",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-17T00:52:38.700929"
+      },
+      "created_at": "2025-09-16 13:59:38.700933"
+    },
+    {
+      "session_id": "mock-1758131558-3939",
+      "decision": "step_up",
+      "risk_score": 0.683,
+      "factors": [
+        "SUSPICIOUS_IP",
+        "DDOS",
+        "MULTIPLE_FAILURES"
+      ],
+      "device_fingerprint": "device-7398",
+      "original_signals": {
+        "ip": "192.168.232.247",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "timestamp": "2025-09-16T07:52:38.700946"
+      },
+      "created_at": "2025-09-16 23:04:38.700950"
+    }
+  ],
+  "framework_comparison": [
+    {
+      "comparison_id": "comp-1",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-1132",
+      "decision": "deny",
+      "risk_score": 0.705,
+      "enforcement": "DENY",
+      "factors": [
+        "OUTSIDE_HOURS"
+      ],
+      "processing_time_ms": 97,
+      "created_at": "2025-09-16 21:16:39.005348"
+    },
+    {
+      "comparison_id": "comp-5",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-2511",
+      "decision": "allow",
+      "risk_score": 0.172,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 36,
+      "created_at": "2025-09-17 05:53:39.005385"
+    },
+    {
+      "comparison_id": "comp-3",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-8135",
+      "decision": "step_up",
+      "risk_score": 0.392,
+      "enforcement": "MFA_REQUIRED",
+      "factors": [
+        "DDOS",
+        "INFILTRATION",
+        "WEB_ATTACK"
+      ],
+      "processing_time_ms": 50,
+      "created_at": "2025-09-17 08:11:39.005409"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-5949",
+      "decision": "allow",
+      "risk_score": 0.154,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 52,
+      "created_at": "2025-09-17 10:56:39.005423"
+    },
+    {
+      "comparison_id": "comp-1",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-2806",
+      "decision": "deny",
+      "risk_score": 0.712,
+      "enforcement": "DENY",
+      "factors": [
+        "SUSPICIOUS_IP",
+        "BOT"
+      ],
+      "processing_time_ms": 60,
+      "created_at": "2025-09-17 11:26:39.005439"
+    },
+    {
+      "comparison_id": "comp-3",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-9000",
+      "decision": "allow",
+      "risk_score": 0.293,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 75,
+      "created_at": "2025-09-17 06:35:39.005451"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-1481",
+      "decision": "step_up",
+      "risk_score": 0.326,
+      "enforcement": "MFA_REQUIRED",
+      "factors": [
+        "DDOS",
+        "INFILTRATION",
+        "SUSPICIOUS_IP",
+        "WEB_ATTACK"
+      ],
+      "processing_time_ms": 44,
+      "created_at": "2025-09-17 15:16:39.005477"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-9429",
+      "decision": "allow",
+      "risk_score": 0.019,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 57,
+      "created_at": "2025-09-17 15:12:39.005489"
+    },
+    {
+      "comparison_id": "comp-3",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-9653",
+      "decision": "step_up",
+      "risk_score": 0.594,
+      "enforcement": "MFA_REQUIRED",
+      "factors": [
+        "DDOS",
+        "BOT",
+        "UNKNOWN_DEVICE"
+      ],
+      "processing_time_ms": 102,
+      "created_at": "2025-09-17 03:11:39.005504"
+    },
+    {
+      "comparison_id": "comp-3",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-2425",
+      "decision": "allow",
+      "risk_score": 0.144,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 43,
+      "created_at": "2025-09-16 18:10:39.005515"
+    },
+    {
+      "comparison_id": "comp-4",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-6285",
+      "decision": "step_up",
+      "risk_score": 0.438,
+      "enforcement": "MFA_REQUIRED",
+      "factors": [
+        "OUTSIDE_HOURS"
+      ],
+      "processing_time_ms": 87,
+      "created_at": "2025-09-17 05:06:39.005529"
+    },
+    {
+      "comparison_id": "comp-5",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-7344",
+      "decision": "allow",
+      "risk_score": 0.167,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 48,
+      "created_at": "2025-09-17 05:05:39.005541"
+    },
+    {
+      "comparison_id": "comp-5",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-7504",
+      "decision": "deny",
+      "risk_score": 0.755,
+      "enforcement": "DENY",
+      "factors": [
+        "BOT",
+        "WEB_ATTACK",
+        "SUSPICIOUS_IP",
+        "INFILTRATION"
+      ],
+      "processing_time_ms": 71,
+      "created_at": "2025-09-16 20:04:39.005558"
+    },
+    {
+      "comparison_id": "comp-1",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-5043",
+      "decision": "step_up",
+      "risk_score": 0.349,
+      "enforcement": "MFA_REQUIRED",
+      "factors": [
+        "INFILTRATION"
+      ],
+      "processing_time_ms": 49,
+      "created_at": "2025-09-17 06:35:39.005578"
+    },
+    {
+      "comparison_id": "comp-3",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-4729",
+      "decision": "allow",
+      "risk_score": 0.074,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 115,
+      "created_at": "2025-09-17 14:25:39.005588"
+    },
+    {
+      "comparison_id": "comp-4",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-7391",
+      "decision": "allow",
+      "risk_score": 0.022,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 34,
+      "created_at": "2025-09-17 01:15:39.005598"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-4389",
+      "decision": "allow",
+      "risk_score": 0.139,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 43,
+      "created_at": "2025-09-17 15:37:39.005607"
+    },
+    {
+      "comparison_id": "comp-5",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-4818",
+      "decision": "allow",
+      "risk_score": 0.296,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 41,
+      "created_at": "2025-09-17 08:56:39.005617"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-6092",
+      "decision": "allow",
+      "risk_score": 0.378,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 91,
+      "created_at": "2025-09-17 01:48:39.005626"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-2551",
+      "decision": "allow",
+      "risk_score": 0.367,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 70,
+      "created_at": "2025-09-16 22:33:39.005635"
+    },
+    {
+      "comparison_id": "comp-1",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-5974",
+      "decision": "step_up",
+      "risk_score": 0.527,
+      "enforcement": "MFA_REQUIRED",
+      "factors": [
+        "UNKNOWN_DEVICE",
+        "WEB_ATTACK",
+        "BOT"
+      ],
+      "processing_time_ms": 41,
+      "created_at": "2025-09-17 09:30:39.005650"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-6251",
+      "decision": "allow",
+      "risk_score": 0.396,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 51,
+      "created_at": "2025-09-17 02:36:39.005660"
+    },
+    {
+      "comparison_id": "comp-4",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-6353",
+      "decision": "step_up",
+      "risk_score": 0.644,
+      "enforcement": "MFA_REQUIRED",
+      "factors": [
+        "SUSPICIOUS_IP"
+      ],
+      "processing_time_ms": 55,
+      "created_at": "2025-09-17 07:02:39.005676"
+    },
+    {
+      "comparison_id": "comp-5",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-6151",
+      "decision": "allow",
+      "risk_score": 0.269,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 73,
+      "created_at": "2025-09-16 20:53:39.005685"
+    },
+    {
+      "comparison_id": "comp-1",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-5888",
+      "decision": "allow",
+      "risk_score": 0.301,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 66,
+      "created_at": "2025-09-17 10:37:39.005695"
+    },
+    {
+      "comparison_id": "comp-1",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-7905",
+      "decision": "allow",
+      "risk_score": 0.114,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 93,
+      "created_at": "2025-09-17 01:14:39.005704"
+    },
+    {
+      "comparison_id": "comp-1",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-9512",
+      "decision": "allow",
+      "risk_score": 0.11,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 35,
+      "created_at": "2025-09-16 19:56:39.005714"
+    },
+    {
+      "comparison_id": "comp-5",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-7022",
+      "decision": "allow",
+      "risk_score": 0.318,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 79,
+      "created_at": "2025-09-16 21:16:39.005723"
+    },
+    {
+      "comparison_id": "comp-4",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-7682",
+      "decision": "allow",
+      "risk_score": 0.235,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 59,
+      "created_at": "2025-09-17 13:00:39.005735"
+    },
+    {
+      "comparison_id": "comp-5",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-2153",
+      "decision": "allow",
+      "risk_score": 0.224,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 36,
+      "created_at": "2025-09-17 00:42:39.005745"
+    },
+    {
+      "comparison_id": "comp-3",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-1641",
+      "decision": "step_up",
+      "risk_score": 0.686,
+      "enforcement": "MFA_REQUIRED",
+      "factors": [
+        "SUSPICIOUS_IP",
+        "DDOS",
+        "OUTSIDE_HOURS",
+        "WEB_ATTACK"
+      ],
+      "processing_time_ms": 110,
+      "created_at": "2025-09-17 10:04:39.005758"
+    },
+    {
+      "comparison_id": "comp-3",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-9921",
+      "decision": "deny",
+      "risk_score": 0.731,
+      "enforcement": "DENY",
+      "factors": [
+        "UNKNOWN_DEVICE",
+        "OUTSIDE_HOURS",
+        "INFILTRATION",
+        "SUSPICIOUS_IP"
+      ],
+      "processing_time_ms": 83,
+      "created_at": "2025-09-17 09:16:39.005772"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-5417",
+      "decision": "allow",
+      "risk_score": 0.32,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 113,
+      "created_at": "2025-09-17 11:36:39.005785"
+    },
+    {
+      "comparison_id": "comp-4",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-2755",
+      "decision": "allow",
+      "risk_score": 0.029,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 61,
+      "created_at": "2025-09-17 00:13:39.005795"
+    },
+    {
+      "comparison_id": "comp-3",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-8612",
+      "decision": "allow",
+      "risk_score": 0.208,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 100,
+      "created_at": "2025-09-17 13:18:39.005804"
+    },
+    {
+      "comparison_id": "comp-1",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-7051",
+      "decision": "allow",
+      "risk_score": 0.268,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 44,
+      "created_at": "2025-09-17 07:14:39.005813"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-3496",
+      "decision": "allow",
+      "risk_score": 0.18,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 57,
+      "created_at": "2025-09-17 04:40:39.005822"
+    },
+    {
+      "comparison_id": "comp-5",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-9963",
+      "decision": "allow",
+      "risk_score": 0.117,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 55,
+      "created_at": "2025-09-17 17:21:39.005831"
+    },
+    {
+      "comparison_id": "comp-4",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-5767",
+      "decision": "allow",
+      "risk_score": 0.075,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 23,
+      "created_at": "2025-09-16 23:22:39.005840"
+    },
+    {
+      "comparison_id": "comp-5",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-2707",
+      "decision": "step_up",
+      "risk_score": 0.454,
+      "enforcement": "MFA_REQUIRED",
+      "factors": [
+        "UNKNOWN_DEVICE",
+        "OUTSIDE_HOURS"
+      ],
+      "processing_time_ms": 115,
+      "created_at": "2025-09-16 20:23:39.005854"
+    },
+    {
+      "comparison_id": "comp-5",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-9980",
+      "decision": "allow",
+      "risk_score": 0.373,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 114,
+      "created_at": "2025-09-17 13:12:39.005863"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-3070",
+      "decision": "deny",
+      "risk_score": 0.865,
+      "enforcement": "DENY",
+      "factors": [
+        "UNKNOWN_DEVICE",
+        "BOT",
+        "INFILTRATION"
+      ],
+      "processing_time_ms": 78,
+      "created_at": "2025-09-17 03:58:39.005876"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-7036",
+      "decision": "allow",
+      "risk_score": 0.179,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 46,
+      "created_at": "2025-09-16 22:20:39.005886"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-6796",
+      "decision": "allow",
+      "risk_score": 0.191,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 34,
+      "created_at": "2025-09-16 20:21:39.005896"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-2809",
+      "decision": "allow",
+      "risk_score": 0.009,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 46,
+      "created_at": "2025-09-17 16:02:39.005905"
+    },
+    {
+      "comparison_id": "comp-3",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-8965",
+      "decision": "allow",
+      "risk_score": 0.215,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 58,
+      "created_at": "2025-09-16 17:56:39.005914"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-9515",
+      "decision": "step_up",
+      "risk_score": 0.595,
+      "enforcement": "MFA_REQUIRED",
+      "factors": [
+        "SUSPICIOUS_IP",
+        "INFILTRATION",
+        "UNKNOWN_DEVICE",
+        "WEB_ATTACK"
+      ],
+      "processing_time_ms": 70,
+      "created_at": "2025-09-16 21:02:39.005928"
+    },
+    {
+      "comparison_id": "comp-4",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-5855",
+      "decision": "allow",
+      "risk_score": 0.06,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 55,
+      "created_at": "2025-09-17 15:40:39.005938"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-1783",
+      "decision": "allow",
+      "risk_score": 0.273,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 34,
+      "created_at": "2025-09-16 23:49:39.005947"
+    },
+    {
+      "comparison_id": "comp-4",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-9973",
+      "decision": "allow",
+      "risk_score": 0.124,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 60,
+      "created_at": "2025-09-16 23:01:39.005959"
+    },
+    {
+      "comparison_id": "comp-5",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-1675",
+      "decision": "step_up",
+      "risk_score": 0.536,
+      "enforcement": "MFA_REQUIRED",
+      "factors": [
+        "OUTSIDE_HOURS",
+        "DDOS",
+        "WEB_ATTACK"
+      ],
+      "processing_time_ms": 57,
+      "created_at": "2025-09-17 17:50:39.005972"
+    },
+    {
+      "comparison_id": "comp-5",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-9667",
+      "decision": "step_up",
+      "risk_score": 0.694,
+      "enforcement": "MFA_REQUIRED",
+      "factors": [
+        "UNKNOWN_DEVICE",
+        "INFILTRATION",
+        "OUTSIDE_HOURS",
+        "WEB_ATTACK"
+      ],
+      "processing_time_ms": 37,
+      "created_at": "2025-09-16 23:15:39.005992"
+    },
+    {
+      "comparison_id": "comp-5",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-8113",
+      "decision": "allow",
+      "risk_score": 0.015,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 52,
+      "created_at": "2025-09-17 05:19:39.006004"
+    },
+    {
+      "comparison_id": "comp-5",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-8955",
+      "decision": "allow",
+      "risk_score": 0.074,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 41,
+      "created_at": "2025-09-17 11:08:39.006015"
+    },
+    {
+      "comparison_id": "comp-1",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-9898",
+      "decision": "deny",
+      "risk_score": 0.705,
+      "enforcement": "DENY",
+      "factors": [
+        "DDOS"
+      ],
+      "processing_time_ms": 119,
+      "created_at": "2025-09-17 16:49:39.006028"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-2703",
+      "decision": "step_up",
+      "risk_score": 0.527,
+      "enforcement": "MFA_REQUIRED",
+      "factors": [
+        "DDOS"
+      ],
+      "processing_time_ms": 47,
+      "created_at": "2025-09-17 13:34:39.006041"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-2769",
+      "decision": "allow",
+      "risk_score": 0.224,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 55,
+      "created_at": "2025-09-17 01:26:39.006053"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-4612",
+      "decision": "deny",
+      "risk_score": 0.961,
+      "enforcement": "DENY",
+      "factors": [
+        "UNKNOWN_DEVICE",
+        "WEB_ATTACK"
+      ],
+      "processing_time_ms": 42,
+      "created_at": "2025-09-17 12:20:39.006066"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-3588",
+      "decision": "allow",
+      "risk_score": 0.028,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 44,
+      "created_at": "2025-09-17 09:58:39.006077"
+    },
+    {
+      "comparison_id": "comp-5",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-2274",
+      "decision": "allow",
+      "risk_score": 0.04,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 52,
+      "created_at": "2025-09-16 19:30:39.006086"
+    },
+    {
+      "comparison_id": "comp-2",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-1954",
+      "decision": "allow",
+      "risk_score": 0.212,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 53,
+      "created_at": "2025-09-16 20:20:39.006096"
+    },
+    {
+      "comparison_id": "comp-1",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-3042",
+      "decision": "deny",
+      "risk_score": 0.9,
+      "enforcement": "DENY",
+      "factors": [
+        "DDOS",
+        "OUTSIDE_HOURS"
+      ],
+      "processing_time_ms": 44,
+      "created_at": "2025-09-16 23:45:39.006109"
+    },
+    {
+      "comparison_id": "comp-3",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-7421",
+      "decision": "step_up",
+      "risk_score": 0.562,
+      "enforcement": "MFA_REQUIRED",
+      "factors": [
+        "DDOS",
+        "OUTSIDE_HOURS"
+      ],
+      "processing_time_ms": 48,
+      "created_at": "2025-09-16 19:03:39.006122"
+    },
+    {
+      "comparison_id": "comp-3",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-1690",
+      "decision": "allow",
+      "risk_score": 0.071,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 59,
+      "created_at": "2025-09-16 23:10:39.006132"
+    },
+    {
+      "comparison_id": "comp-4",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-5626",
+      "decision": "allow",
+      "risk_score": 0.181,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 34,
+      "created_at": "2025-09-16 23:43:39.006141"
+    },
+    {
+      "comparison_id": "comp-4",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-8395",
+      "decision": "deny",
+      "risk_score": 0.738,
+      "enforcement": "DENY",
+      "factors": [
+        "OUTSIDE_HOURS",
+        "UNKNOWN_DEVICE"
+      ],
+      "processing_time_ms": 60,
+      "created_at": "2025-09-17 11:12:39.006157"
+    },
+    {
+      "comparison_id": "comp-5",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-7868",
+      "decision": "allow",
+      "risk_score": 0.211,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 31,
+      "created_at": "2025-09-17 04:20:39.006167"
+    },
+    {
+      "comparison_id": "comp-5",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-4856",
+      "decision": "allow",
+      "risk_score": 0.225,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 94,
+      "created_at": "2025-09-17 02:01:39.006176"
+    },
+    {
+      "comparison_id": "comp-1",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-9288",
+      "decision": "allow",
+      "risk_score": 0.001,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 28,
+      "created_at": "2025-09-17 16:29:39.006185"
+    },
+    {
+      "comparison_id": "comp-3",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-5757",
+      "decision": "allow",
+      "risk_score": 0.311,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 70,
+      "created_at": "2025-09-17 08:50:39.006195"
+    },
+    {
+      "comparison_id": "comp-4",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-3148",
+      "decision": "deny",
+      "risk_score": 0.825,
+      "enforcement": "DENY",
+      "factors": [
+        "BOT",
+        "SUSPICIOUS_IP"
+      ],
+      "processing_time_ms": 39,
+      "created_at": "2025-09-17 13:47:39.006210"
+    },
+    {
+      "comparison_id": "comp-4",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-3922",
+      "decision": "allow",
+      "risk_score": 0.32,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 43,
+      "created_at": "2025-09-16 18:20:39.006222"
+    },
+    {
+      "comparison_id": "comp-1",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-5170",
+      "decision": "allow",
+      "risk_score": 0.082,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 118,
+      "created_at": "2025-09-17 01:30:39.006232"
+    },
+    {
+      "comparison_id": "comp-1",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-3627",
+      "decision": "allow",
+      "risk_score": 0.034,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 25,
+      "created_at": "2025-09-17 06:31:39.006241"
+    },
+    {
+      "comparison_id": "comp-1",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-5400",
+      "decision": "allow",
+      "risk_score": 0.155,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 57,
+      "created_at": "2025-09-17 11:15:39.006251"
+    },
+    {
+      "comparison_id": "comp-3",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-9627",
+      "decision": "allow",
+      "risk_score": 0.027,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 89,
+      "created_at": "2025-09-17 16:27:39.006259"
+    },
+    {
+      "comparison_id": "comp-1",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-6688",
+      "decision": "allow",
+      "risk_score": 0.03,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 31,
+      "created_at": "2025-09-17 16:54:39.006269"
+    },
+    {
+      "comparison_id": "comp-3",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-9239",
+      "decision": "deny",
+      "risk_score": 0.968,
+      "enforcement": "DENY",
+      "factors": [
+        "OUTSIDE_HOURS"
+      ],
+      "processing_time_ms": 58,
+      "created_at": "2025-09-16 23:05:39.006283"
+    },
+    {
+      "comparison_id": "comp-4",
+      "framework_type": "baseline",
+      "session_id": "mock-1758131559-5790",
+      "decision": "allow",
+      "risk_score": 0.133,
+      "enforcement": "ALLOW",
+      "factors": [],
+      "processing_time_ms": 84,
+      "created_at": "2025-09-17 14:44:39.006293"
+    },
+    {
+      "comparison_id": "comp-5",
+      "framework_type": "proposed",
+      "session_id": "mock-1758131559-4212",
+      "decision": "deny",
+      "risk_score": 0.97,
+      "enforcement": "DENY",
+      "factors": [
+        "INFILTRATION",
+        "UNKNOWN_DEVICE"
+      ],
+      "processing_time_ms": 59,
+      "created_at": "2025-09-16 19:06:39.006306"
+    }
+  ],
+  "mfa_events": [
+    {
+      "session_id": "mock-1758131559-6914",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.7584252946597319,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 20:15:39.309973"
+    },
+    {
+      "session_id": "mock-1758131559-6773",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.6790931473659962,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 06:05:39.310010"
+    },
+    {
+      "session_id": "mock-1758131559-9846",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.7225151441779003,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 21:28:39.310023"
+    },
+    {
+      "session_id": "mock-1758131559-2549",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.05462453809578516,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 00:03:39.310030"
+    },
+    {
+      "session_id": "mock-1758131559-8454",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.7806273344620058,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 06:45:39.310036"
+    },
+    {
+      "session_id": "mock-1758131559-2740",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.08390909968031646,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 12:58:39.310042"
+    },
+    {
+      "session_id": "mock-1758131559-6396",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.7843542175279997,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 14:25:39.310061"
+    },
+    {
+      "session_id": "mock-1758131559-9864",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.4502246335781839,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 19:02:39.310068"
+    },
+    {
+      "session_id": "mock-1758131559-4864",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.6888246613011253,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 14:28:39.310074"
+    },
+    {
+      "session_id": "mock-1758131559-5535",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.8084147108144615,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 17:05:39.310080"
+    },
+    {
+      "session_id": "mock-1758131559-6698",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.31478717402016476,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 15:40:39.310086"
+    },
+    {
+      "session_id": "mock-1758131559-9002",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.9777797465623345,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 16:25:39.310092"
+    },
+    {
+      "session_id": "mock-1758131559-3875",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.8167751495381347,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 15:40:39.310097"
+    },
+    {
+      "session_id": "mock-1758131559-3261",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.14002496209564774,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 13:40:39.310107"
+    },
+    {
+      "session_id": "mock-1758131559-8622",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.5770827772250886,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 02:02:39.310114"
+    },
+    {
+      "session_id": "mock-1758131559-9979",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.23713100687254152,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 12:53:39.310119"
+    },
+    {
+      "session_id": "mock-1758131559-7169",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.4220569946863779,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 19:01:39.310125"
+    },
+    {
+      "session_id": "mock-1758131559-6190",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.06010447035843747,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 04:39:39.310131"
+    },
+    {
+      "session_id": "mock-1758131559-1891",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.32714874606529365,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 13:18:39.310137"
+    },
+    {
+      "session_id": "mock-1758131559-1144",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.8360797654704402,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 01:45:39.310143"
+    },
+    {
+      "session_id": "mock-1758131559-4276",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.1938459435178379,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 16:52:39.310148"
+    },
+    {
+      "session_id": "mock-1758131559-1114",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.39804169868180295,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 16:11:39.310154"
+    },
+    {
+      "session_id": "mock-1758131559-2983",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.3076887005751412,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 01:29:39.310163"
+    },
+    {
+      "session_id": "mock-1758131559-2916",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.19321348155217155,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 12:08:39.310168"
+    },
+    {
+      "session_id": "mock-1758131559-8848",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.45349819517556533,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 17:59:39.310174"
+    },
+    {
+      "session_id": "mock-1758131559-3710",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.29608984524668036,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 07:11:39.310180"
+    },
+    {
+      "session_id": "mock-1758131559-1995",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.05689479402870545,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 14:06:39.310185"
+    },
+    {
+      "session_id": "mock-1758131559-9449",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.4212736472040183,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 21:39:39.310194"
+    },
+    {
+      "session_id": "mock-1758131559-4682",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.4776685344745406,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 20:31:39.310199"
+    },
+    {
+      "session_id": "mock-1758131559-4137",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.07393774055714875,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 13:05:39.310205"
+    },
+    {
+      "session_id": "mock-1758131559-5514",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.6333176700121756,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 14:44:39.310210"
+    },
+    {
+      "session_id": "mock-1758131559-1797",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.945219125149515,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 17:24:39.310216"
+    },
+    {
+      "session_id": "mock-1758131559-7200",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.6795870335787362,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 16:21:39.310222"
+    },
+    {
+      "session_id": "mock-1758131559-5823",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.28395307369843403,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 03:40:39.310227"
+    },
+    {
+      "session_id": "mock-1758131559-7370",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.7266233091242805,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 19:40:39.310236"
+    },
+    {
+      "session_id": "mock-1758131559-8560",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.39527086001619927,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 22:20:39.310241"
+    },
+    {
+      "session_id": "mock-1758131559-5400",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.7252480514638947,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 17:08:39.310246"
+    },
+    {
+      "session_id": "mock-1758131559-7919",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.026040030727816132,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 04:37:39.310252"
+    },
+    {
+      "session_id": "mock-1758131559-9714",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.2180273803593875,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 15:07:39.310260"
+    },
+    {
+      "session_id": "mock-1758131559-4382",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.8007640939441403,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 22:06:39.310265"
+    },
+    {
+      "session_id": "mock-1758131559-6400",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.4135019517390327,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 18:07:39.310271"
+    },
+    {
+      "session_id": "mock-1758131559-8845",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.5977798543445605,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 21:47:39.310277"
+    },
+    {
+      "session_id": "mock-1758131559-9408",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.9445239283272409,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 03:23:39.310283"
+    },
+    {
+      "session_id": "mock-1758131559-3724",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.04012477561664418,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 13:34:39.310288"
+    },
+    {
+      "session_id": "mock-1758131559-2946",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.9787376192184695,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 14:27:39.310294"
+    },
+    {
+      "session_id": "mock-1758131559-7083",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.4681571004712578,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 10:16:39.310301"
+    },
+    {
+      "session_id": "mock-1758131559-1943",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.7473924443166737,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 03:51:39.310306"
+    },
+    {
+      "session_id": "mock-1758131559-6098",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.4733367892676368,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 15:50:39.310312"
+    },
+    {
+      "session_id": "mock-1758131559-8332",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.09683452123972924,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 07:03:39.310336"
+    },
+    {
+      "session_id": "mock-1758131559-8757",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.478019089247422,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 10:49:39.310342"
+    },
+    {
+      "session_id": "mock-1758131559-8022",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.2754096880187141,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 18:31:39.310348"
+    },
+    {
+      "session_id": "mock-1758131559-8851",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.9907450104286643,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 21:33:39.310353"
+    },
+    {
+      "session_id": "mock-1758131559-6263",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.8801688801127584,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 17:22:39.310358"
+    },
+    {
+      "session_id": "mock-1758131559-8010",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.4135629329758064,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 04:40:39.310364"
+    },
+    {
+      "session_id": "mock-1758131559-8400",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.7652909844293719,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 07:11:39.310373"
+    },
+    {
+      "session_id": "mock-1758131559-9014",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.5978983732388743,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 06:26:39.310381"
+    },
+    {
+      "session_id": "mock-1758131559-9354",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.6951249655991699,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 01:30:39.310386"
+    },
+    {
+      "session_id": "mock-1758131559-5688",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.35076193239600395,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 14:44:39.310393"
+    },
+    {
+      "session_id": "mock-1758131559-5933",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.6447243062961201,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 09:35:39.310399"
+    },
+    {
+      "session_id": "mock-1758131559-2782",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.08587426775452867,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 19:07:39.310404"
+    },
+    {
+      "session_id": "mock-1758131559-7053",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.4720440717180945,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 01:16:39.310409"
+    },
+    {
+      "session_id": "mock-1758131559-7811",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.1476000142658992,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 22:56:39.310415"
+    },
+    {
+      "session_id": "mock-1758131559-2531",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.02832223745202067,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 20:02:39.310421"
+    },
+    {
+      "session_id": "mock-1758131559-6871",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.608814684853226,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 02:35:39.310426"
+    },
+    {
+      "session_id": "mock-1758131559-8191",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.22232154891613287,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 02:22:39.310432"
+    },
+    {
+      "session_id": "mock-1758131559-3846",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.9540830788933148,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 18:17:39.310441"
+    },
+    {
+      "session_id": "mock-1758131559-9942",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.1352108771398728,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 12:06:39.310446"
+    },
+    {
+      "session_id": "mock-1758131559-2367",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.036348661078867694,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 00:11:39.310452"
+    },
+    {
+      "session_id": "mock-1758131559-7481",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.6424701975162063,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 09:22:39.310458"
+    },
+    {
+      "session_id": "mock-1758131559-1815",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.24112997775845235,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 19:07:39.310463"
+    },
+    {
+      "session_id": "mock-1758131559-1372",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.7541615348711237,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 05:37:39.310471"
+    },
+    {
+      "session_id": "mock-1758131559-9147",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.6814759924934385,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 13:13:39.310477"
+    },
+    {
+      "session_id": "mock-1758131559-7723",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.20609802578565128,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 04:24:39.310482"
+    },
+    {
+      "session_id": "mock-1758131559-7692",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.15301526382487873,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 15:41:39.310488"
+    },
+    {
+      "session_id": "mock-1758131559-9976",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.5697762756457149,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 19:42:39.310494"
+    },
+    {
+      "session_id": "mock-1758131559-5354",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.4225597063513318,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 08:20:39.310499"
+    },
+    {
+      "session_id": "mock-1758131559-2622",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.6892567687632688,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 14:24:39.310507"
+    },
+    {
+      "session_id": "mock-1758131559-6478",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.011671804104941064,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 12:59:39.310946"
+    },
+    {
+      "session_id": "mock-1758131559-7478",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.8011913091633522,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 06:52:39.310955"
+    },
+    {
+      "session_id": "mock-1758131559-4932",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.9621756229333525,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 16:54:39.310961"
+    },
+    {
+      "session_id": "mock-1758131559-2867",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.9418017272912418,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 06:46:39.310967"
+    },
+    {
+      "session_id": "mock-1758131559-8808",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.35286616460834475,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 01:57:39.310973"
+    },
+    {
+      "session_id": "mock-1758131559-9686",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.3132348914434896,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 03:52:39.310978"
+    },
+    {
+      "session_id": "mock-1758131559-6514",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.08420834350760265,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 16:04:39.310984"
+    },
+    {
+      "session_id": "mock-1758131559-4962",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.5286351514973502,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 01:30:39.310989"
+    },
+    {
+      "session_id": "mock-1758131559-5113",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.15717700098390186,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 14:06:39.310995"
+    },
+    {
+      "session_id": "mock-1758131559-6817",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.9435243984420106,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 02:03:39.311009"
+    },
+    {
+      "session_id": "mock-1758131559-2311",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.9084278493508894,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 23:48:39.311016"
+    },
+    {
+      "session_id": "mock-1758131559-5347",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.4557867171576143,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 12:38:39.311021"
+    },
+    {
+      "session_id": "mock-1758131559-5937",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.6078268186471397,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 18:53:39.311100"
+    },
+    {
+      "session_id": "mock-1758131559-3727",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.7795555974110592,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 15:30:39.311110"
+    },
+    {
+      "session_id": "mock-1758131559-3585",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.6682611106830064,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 17:56:39.311117"
+    },
+    {
+      "session_id": "mock-1758131559-6342",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.21388514109895762,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 06:01:39.311154"
+    },
+    {
+      "session_id": "mock-1758131559-9394",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.6239170348438117,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 10:02:39.311171"
+    },
+    {
+      "session_id": "mock-1758131559-1105",
+      "outcome": "failed",
+      "detail": {
+        "risk": 0.14400558187122714,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 07:29:39.311177"
+    },
+    {
+      "session_id": "mock-1758131559-6960",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.5589653951336393,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 07:08:39.311182"
+    },
+    {
+      "session_id": "mock-1758131559-3884",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.21914653240290094,
+        "decision": "allow",
+        "enforcement": "ALLOW",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 19:50:39.311188"
+    },
+    {
+      "session_id": "mock-1758131559-6081",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.977496091987911,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-16 22:15:39.311193"
+    },
+    {
+      "session_id": "mock-1758131559-4688",
+      "outcome": "success",
+      "detail": {
+        "risk": 0.7415614564700707,
+        "decision": "deny",
+        "enforcement": "DENY",
+        "method": "password",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 11:00:39.311198"
+    },
+    {
+      "session_id": "mock-1758131559-7783",
+      "outcome": "sent",
+      "detail": {
+        "risk": 0.6808264516357364,
+        "decision": "step_up",
+        "enforcement": "MFA_REQUIRED",
+        "method": "sms",
+        "signals_used": [
+          "ip_geo",
+          "device_posture",
+          "tls_fp",
+          "gps"
+        ]
+      },
+      "created_at": "2025-09-17 15:24:39.311204"
+    }
+  ]
+}

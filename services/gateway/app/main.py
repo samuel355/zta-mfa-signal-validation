@@ -1,7 +1,7 @@
 import os, json, socket, urllib.parse, datetime as dt
 import httpx, pyotp
 from typing import Optional, Dict, Any
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
@@ -61,7 +61,7 @@ def index_to_es(
             print(f"[ES_INDEX] Indexed doc into {es_index}")
     except Exception as e:
         print(f"[ES_INDEX] failed for {es_index}: {e}")
-        
+
 # -------------------- DB --------------------
 def _mask_dsn(dsn: str) -> str:
     try:
@@ -289,7 +289,7 @@ def decision(payload: ValidateAndDecide):
                 print(f"[GATEWAY] SIEM alert inserted for {session_id} (stride={stride_value}, risk={risk})")
             except Exception as ex:
                 print(f"[GATEWAY] Failed to insert SIEM alert: {ex}")
-                
+
     # ---------------- Elasticsearch index ----------------
     if decision.lower() in ("step_up", "deny"):
         # Map reasons to STRIDE values for Elasticsearch too
@@ -307,7 +307,7 @@ def decision(payload: ValidateAndDecide):
             "POLICY": "EoP",
             "EOP": "EoP",
         }
-    
+
         stride_value = None
         for r in reasons:
             for k, v in STRIDE_MAP.items():
@@ -318,8 +318,8 @@ def decision(payload: ValidateAndDecide):
                 break
         if not stride_value:
             stride_value = "Spoofing"
-    
-    
+
+
         # Always index MFA events
         index_to_es(
             session_id,
@@ -329,7 +329,7 @@ def decision(payload: ValidateAndDecide):
             reasons + [stride_value],   # keep reasons + stride
             index="mfa-events"
         )
-        
+
         #Risky events also gets to siem
         index_to_es(
             session_id=session_id,

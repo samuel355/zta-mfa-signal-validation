@@ -217,9 +217,6 @@ services:
       TLS_CSV: /app/data/tls/ja3_fingerprints.csv
       VALIDATE_URL: http://validation:8000/validate
       GATEWAY_URL: http://gateway:8000/decision
-      BASELINE_URL: http://baseline:8000/decision
-      DB_DSN: ${DB_DSN}
-      PGOPTIONS: ${PGOPTIONS}
 
       SIM_MODE: ${SIM_MODE}
       SIM_SLEEP: "${SIM_SLEEP}"

@@ -1,0 +1,55 @@
+[flake8]
+max-line-length = 88
+max-complexity = 10
+exclude =
+    .git,
+    __pycache__,
+    .pytest_cache,
+    .venv,
+    venv,
+    env,
+    .env,
+    build,
+    dist,
+    *.egg-info
+
+# Ignore specific error codes
+ignore =
+    # E203: whitespace before ':' (conflicts with black)
+    E203,
+    # W503: line break before binary operator (conflicts with black)
+    W503,
+    # E501: line too long (handled by max-line-length)
+    E501,
+    # F401: imported but unused (sometimes needed for imports)
+    # F401,
+    # E402: module level import not at top of file
+    # E402
+
+# Select specific error codes to check
+select =
+    E,  # pycodestyle errors
+    W,  # pycodestyle warnings
+    F,  # pyflakes errors
+    C,  # mccabe complexity
+
+per-file-ignores =
+    # Allow unused imports in __init__.py files
+    __init__.py:F401,
+    # Allow long lines in configuration files
+    */settings.py:E501,
+    */config.py:E501
+
+# Docstring conventions
+docstring-convention = google
+
+# Import order
+import-order-style = google
+application-import-names =
+    compare_frameworks,
+    thesis_metrics,
+    run_evaluation
+
+# Additional checks
+inline-quotes = double
+multiline-quotes = double
