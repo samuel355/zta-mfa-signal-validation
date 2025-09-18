@@ -1,0 +1,351 @@
+{
+  "metadata": {
+    "extraction_timestamp": "2025-09-18T11:29:04.292978",
+    "time_period_hours": 24,
+    "system_info": {
+      "database_connected": true,
+      "services_configured": [
+        "metrics",
+        "baseline",
+        "gateway",
+        "validation",
+        "kibana"
+      ]
+    }
+  },
+  "framework_comparison": {
+    "extraction_time": "2025-09-18T11:28:41.401444",
+    "time_period_hours": 24,
+    "proposed_framework": {
+      "database_metrics": {
+        "total_events": 366,
+        "decision_distribution": {
+          "allow": 0,
+          "step_up": 361,
+          "deny": 5
+        },
+        "performance": {
+          "avg_risk_score": 0.4689890710382514,
+          "avg_processing_time_ms": 7886.415300546448,
+          "risk_score_stddev": 0.13452632228333558
+        }
+      },
+      "security_metrics": [
+        {
+          "attack_type": "BENIGN",
+          "total_events": 117,
+          "detected": 117,
+          "detection_rate": 100.0,
+          "avg_accuracy": 0.0,
+          "false_positives": 117,
+          "false_negatives": 0
+        },
+        {
+          "attack_type": "DDOS",
+          "total_events": 79,
+          "detected": 79,
+          "detection_rate": 100.0,
+          "avg_accuracy": 0.0,
+          "false_positives": 0,
+          "false_negatives": 0
+        },
+        {
+          "attack_type": "HEARTBLEED",
+          "total_events": 45,
+          "detected": 45,
+          "detection_rate": 100.0,
+          "avg_accuracy": 0.0,
+          "false_positives": 0,
+          "false_negatives": 0
+        },
+        {
+          "attack_type": "INFILTRATION",
+          "total_events": 57,
+          "detected": 57,
+          "detection_rate": 100.0,
+          "avg_accuracy": 0.0,
+          "false_positives": 0,
+          "false_negatives": 0
+        },
+        {
+          "attack_type": "WEB ATTACK",
+          "total_events": 68,
+          "detected": 68,
+          "detection_rate": 100.0,
+          "avg_accuracy": 0.0,
+          "false_positives": 0,
+          "false_negatives": 0
+        }
+      ]
+    },
+    "baseline_framework": {
+      "decision_distribution": [
+        {
+          "decision": "step_up",
+          "count": 472,
+          "avg_risk": 0.4504237288135593
+        }
+      ],
+      "top_factors": [
+        {
+          "factor": "UNKNOWN_DEVICE",
+          "count": 472
+        },
+        {
+          "factor": "LOCATION_ANOMALY",
+          "count": 472
+        },
+        {
+          "factor": "DOS_ATTACK",
+          "count": 100
+        },
+        {
+          "factor": "WEB_ATTACK",
+          "count": 81
+        },
+        {
+          "factor": "MALWARE",
+          "count": 73
+        },
+        {
+          "factor": "TLS_VULNERABILITY",
+          "count": 62
+        }
+      ],
+      "auth_outcomes": [
+        {
+          "outcome": "mfa_required",
+          "count": 472
+        }
+      ],
+      "database_metrics": {
+        "total_events": 365,
+        "decision_distribution": {
+          "allow": 0,
+          "step_up": 365,
+          "deny": 0
+        },
+        "performance": {
+          "avg_risk_score": 0.4519178082191781,
+          "avg_processing_time_ms": 4195.613698630137,
+          "risk_score_stddev": 0.07009917492277087
+        }
+      },
+      "security_metrics": [
+        {
+          "attack_type": "BENIGN",
+          "total_events": 117,
+          "detected": 117,
+          "detection_rate": 100.0,
+          "avg_accuracy": 0.0,
+          "false_positives": 117,
+          "false_negatives": 0
+        },
+        {
+          "attack_type": "DDOS",
+          "total_events": 79,
+          "detected": 79,
+          "detection_rate": 100.0,
+          "avg_accuracy": 0.0,
+          "false_positives": 0,
+          "false_negatives": 0
+        },
+        {
+          "attack_type": "HEARTBLEED",
+          "total_events": 45,
+          "detected": 45,
+          "detection_rate": 100.0,
+          "avg_accuracy": 0.0,
+          "false_positives": 0,
+          "false_negatives": 0
+        },
+        {
+          "attack_type": "INFILTRATION",
+          "total_events": 57,
+          "detected": 57,
+          "detection_rate": 100.0,
+          "avg_accuracy": 0.0,
+          "false_positives": 0,
+          "false_negatives": 0
+        },
+        {
+          "attack_type": "WEB ATTACK",
+          "total_events": 67,
+          "detected": 67,
+          "detection_rate": 100.0,
+          "avg_accuracy": 0.0,
+          "false_positives": 0,
+          "false_negatives": 0
+        }
+      ]
+    },
+    "comparison_summary": {
+      "summary": {
+        "total_events": 432,
+        "success_rate": 0.0,
+        "mfa_stepup_rate": 98.61111111111111,
+        "threat_detection_rate": 0,
+        "false_positive_rate": 0
+      },
+      "detailed_metrics": {
+        "security": {
+          "authentication_outcomes": {
+            "sent": 426,
+            "failed": 6
+          },
+          "risk_distribution": {
+            "medium": 400,
+            "high": 32
+          },
+          "enforcement_actions": [
+            {
+              "enforcement": "MFA_STEP_UP",
+              "count": 426,
+              "avg_risk": 0.462793427230047
+            },
+            {
+              "enforcement": "DENY",
+              "count": 6,
+              "avg_risk": 1.0
+            }
+          ],
+          "stride_detections": [
+            {
+              "stride": "EoP",
+              "severity": "medium",
+              "count": 74
+            },
+            {
+              "stride": "EoP",
+              "severity": "high",
+              "count": 2
+            },
+            {
+              "stride": "InformationDisclosure",
+              "severity": "medium",
+              "count": 67
+            },
+            {
+              "stride": "DoS",
+              "severity": "medium",
+              "count": 94
+            },
+            {
+              "stride": "Spoofing",
+              "severity": "high",
+              "count": 2
+            },
+            {
+              "stride": "Tampering",
+              "severity": "high",
+              "count": 31
+            },
+            {
+              "stride": "Tampering",
+              "severity": "medium",
+              "count": 59
+            },
+            {
+              "stride": "Spoofing",
+              "severity": "medium",
+              "count": 80
+            },
+            {
+              "stride": "Repudiation",
+              "severity": "medium",
+              "count": 35
+            },
+            {
+              "stride": "DoS",
+              "severity": "high",
+              "count": 1
+            }
+          ]
+        },
+        "detection": {
+          "threat_detection_by_label": [],
+          "signal_quality": [
+            {
+              "missing_signals": 0,
+              "count": 409,
+              "avg_threats_detected": 0.0
+            }
+          ],
+          "cross_check_stats": [
+            {
+              "gps_wifi_mismatch": false,
+              "count": 325
+            },
+            {
+              "gps_wifi_mismatch": true,
+              "count": 84
+            }
+          ]
+        },
+        "decision": {
+          "decision_distribution": [
+            {
+              "decision": "step_up",
+              "count": 406,
+              "avg_risk": 0.46379310344827585,
+              "risk_range": [
+                0.3,
+                0.7
+              ]
+            }
+          ],
+          "risk_decision_correlation": [
+            {
+              "risk_category": "high_risk",
+              "decision": "step_up",
+              "count": 29
+            },
+            {
+              "risk_category": "medium_risk",
+              "decision": "step_up",
+              "count": 377
+            }
+          ],
+          "stride_impact": [
+            {
+              "stride_component": "Tampering",
+              "decision": "step_up",
+              "count": 226
+            },
+            {
+              "stride_component": "Repudiation",
+              "decision": "step_up",
+              "count": 59
+            },
+            {
+              "stride_component": "Spoofing",
+              "decision": "step_up",
+              "count": 76
+            },
+            {
+              "stride_component": "Elevation of Privilege",
+              "decision": "step_up",
+              "count": 74
+            },
+            {
+              "stride_component": "Information Disclosure",
+              "decision": "step_up",
+              "count": 62
+            },
+            {
+              "stride_component": "Denial of Service",
+              "decision": "step_up",
+              "count": 85
+            }
+          ]
+        }
+      }
+    }
+  },
+  "performance_metrics": {
+    "error": "(psycopg.errors.SyntaxError) syntax error at or near \"$1\"\nLINE 13: ...                 WHERE created_at > NOW() - INTERVAL $1 HOUR\n                                                                 ^\n[SQL: \n                    SELECT\n                        service_name,\n                        operation,\n                        COUNT(*) as total_requests,\n                        AVG(duration_ms) as avg_duration_ms,\n                        MIN(duration_ms) as min_duration_ms,\n                        MAX(duration_ms) as max_duration_ms,\n                        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_duration_ms,\n                        COUNT(*) FILTER (WHERE status = 'error') as error_count,\n                        (COUNT(*) FILTER (WHERE status = 'error') * 100.0 / COUNT(*)) as error_rate\n                    FROM zta.performance_metrics\n                    WHERE created_at > NOW() - INTERVAL %(hours)s HOUR\n                    GROUP BY service_name, operation\n                    ORDER BY service_name, operation\n                ]\n[parameters: {'hours': 24}]\n(Background on this error at: https://sqlalche.me/e/20/f405)"
+  },
+  "security_effectiveness": {
+    "error": "(psycopg.errors.SyntaxError) syntax error at or near \"$1\"\nLINE 8: ...                 WHERE created_at > NOW() - INTERVAL $1 HOUR\n                                                                ^\n[SQL: \n                    SELECT\n                        stride,\n                        severity,\n                        COUNT(*) as alert_count,\n                        COUNT(DISTINCT session_id) as unique_sessions\n                    FROM zta.siem_alerts\n                    WHERE created_at > NOW() - INTERVAL %(hours)s HOUR\n                    GROUP BY stride, severity\n                    ORDER BY stride, severity\n                ]\n[parameters: {'hours': 24}]\n(Background on this error at: https://sqlalche.me/e/20/f405)"
+  }
+}

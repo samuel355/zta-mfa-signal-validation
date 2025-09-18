@@ -342,8 +342,10 @@ def decision(payload: ValidateAndDecide):
 
     resp = {
         "session_id": session_id,
+        "decision": decision,
         "enforcement": enforcement,
         "risk": risk,
+        "reasons": reasons,
         "persistence": persistence,
     }
     if "otp_demo" in detail:

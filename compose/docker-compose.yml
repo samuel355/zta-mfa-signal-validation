@@ -241,5 +241,7 @@ services:
       SIM_TLS_BAD_RATE: "${SIM_TLS_BAD_RATE}"
       SIM_PATCHED_TRUE_RATE: "${SIM_PATCHED_TRUE_RATE}"
       SIM_GPS_OFFSET_KM: "${SIM_GPS_OFFSET_KM}"
+      SIM_DURATION_HOURS: "${SIM_DURATION_HOURS:-24.0}"
     depends_on: [validation, gateway, metrics, baseline]
     networks: [zta_net]
+    restart: unless-stopped

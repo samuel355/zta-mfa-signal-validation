@@ -28,6 +28,8 @@ DB_DSN = os.getenv("DB_DSN", "postgresql://postgres:password@localhost:5432/post
 SLEEP_BETWEEN = float(os.getenv("SIM_SLEEP", "0.8"))
 MAX_ROWS      = int(os.getenv("SIM_MAX_ROWS", "400"))
 MAX_PER_FILE  = int(os.getenv("SIM_MAX_PER_FILE", "600"))
+# For 24-hour simulation: 24h * 3600s/h / 1s sleep = 86400 samples
+MAX_24H_SAMPLES = int(os.getenv("SIM_24H_SAMPLES", "86400"))
 BENIGN_KEEP   = float(os.getenv("SIM_BENIGN_KEEP", "0.10"))
 USE_GPS_FROM_WIFI = os.getenv("SIM_USE_GPS_FROM_WIFI","true").lower() in {"1","true","yes","on"}
 
@@ -61,16 +63,16 @@ class EnhancedSimulator:
         self._setup_stride_buckets()
 
     def _init_database(self):
-        """Initialize database connection"""
+        """Initialize database connection with proper error handling"""
         try:
-            if DB_DSN.startswith("postgresql://"):
-                dsn = "postgresql+psycopg://" + DB_DSN[len("postgresql://"):]
-            elif DB_DSN.startswith("postgres://"):
-                dsn = "postgresql+psycopg://" + DB_DSN[len("postgres://"):]
-            else:
-                dsn = DB_DSN
+            dsn = DB_DSN
+            if dsn.startswith("postgresql://"):
+                dsn = "postgresql+psycopg://" + dsn[len("postgresql://"):]
+            elif dsn.startswith("postgres://"):
+                dsn = "postgresql+psycopg://" + dsn[len("postgres://"):]
 
-            if "sslmode=" not in dsn:
+            # Ensure SSL for remote connections
+            if "localhost" not in dsn and "127.0.0.1" not in dsn and "sslmode=" not in dsn:
                 dsn += ("&" if "?" in dsn else "?") + "sslmode=require"
 
             self.engine = create_engine(dsn, pool_pre_ping=True)
@@ -337,11 +339,14 @@ class EnhancedSimulator:
             start_time = time.perf_counter()
 
             # Step 1: Validation
+            print(f"[PROPOSED] Calling validation for {sig['session_id']}")
             vr = await client.post(VALIDATE_URL, json={"signals": sig}, timeout=30.0)
             vr.raise_for_status()
             validated = vr.json().get("validated", {})
+            print(f"[PROPOSED] Validation successful for {sig['session_id']}")
 
             # Step 2: Gateway decision
+            print(f"[PROPOSED] Calling gateway for {sig['session_id']}")
             dr = await client.post(GATEWAY_URL, json={"validated": validated, "siem": {}}, timeout=30.0)
             dr.raise_for_status()
             decision_data = dr.json()
@@ -349,18 +354,31 @@ class EnhancedSimulator:
             end_time = time.perf_counter()
             processing_time_ms = int((end_time - start_time) * 1000)
 
+            decision = decision_data.get("decision", "unknown")
+            risk_score = decision_data.get("risk", 0.0)
+            enforcement = decision_data.get("enforcement", "ALLOW")
+            factors = decision_data.get("reasons", [])
+
+            print(f"[PROPOSED] Decision for {sig['session_id']}: {decision} (risk={risk_score}, factors={factors})")
+
             return {
                 "framework": "proposed",
                 "session_id": sig["session_id"],
-                "decision": decision_data.get("decision", "unknown"),
-                "risk_score": decision_data.get("risk", 0.0),
-                "enforcement": decision_data.get("enforcement", "ALLOW"),
-                "factors": decision_data.get("reasons", []),
+                "decision": decision,
+                "risk_score": risk_score,
+                "enforcement": enforcement,
+                "factors": factors,
                 "processing_time_ms": processing_time_ms,
                 "full_response": decision_data
             }
+        except httpx.HTTPStatusError as e:
+            print(f"[PROPOSED] HTTP Error for {sig['session_id']}: {e.response.status_code} - {e.response.text}")
+            return None
+        except httpx.TimeoutException as e:
+            print(f"[PROPOSED] Timeout for {sig['session_id']}: {e}")
+            return None
         except Exception as e:
-            print(f"[PROPOSED] Error for {sig['session_id']}: {e}")
+            print(f"[PROPOSED] Unexpected error for {sig['session_id']}: {e}")
             return None
 
     async def _call_baseline_framework(self, client, sig):
@@ -368,6 +386,7 @@ class EnhancedSimulator:
         try:
             start_time = time.perf_counter()
 
+            print(f"[BASELINE] Calling baseline for {sig['session_id']}")
             response = await client.post(BASELINE_URL, json={"signals": sig}, timeout=30.0)
             response.raise_for_status()
             decision = response.json()
@@ -375,18 +394,31 @@ class EnhancedSimulator:
             end_time = time.perf_counter()
             processing_time_ms = int((end_time - start_time) * 1000)
 
+            decision_val = decision.get("decision", "unknown")
+            risk_score = decision.get("risk_score", 0.0)
+            enforcement = decision.get("enforcement", "ALLOW")
+            factors = decision.get("factors", [])
+
+            print(f"[BASELINE] Decision for {sig['session_id']}: {decision_val} (risk={risk_score}, factors={factors})")
+
             return {
                 "framework": "baseline",
                 "session_id": sig["session_id"],
-                "decision": decision.get("decision", "unknown"),
-                "risk_score": decision.get("risk_score", 0.0),
-                "enforcement": decision.get("enforcement", "ALLOW"),
-                "factors": decision.get("factors", []),
+                "decision": decision_val,
+                "risk_score": risk_score,
+                "enforcement": enforcement,
+                "factors": factors,
                 "processing_time_ms": processing_time_ms,
                 "full_response": decision
             }
+        except httpx.HTTPStatusError as e:
+            print(f"[BASELINE] HTTP Error for {sig['session_id']}: {e.response.status_code} - {e.response.text}")
+            return None
+        except httpx.TimeoutException as e:
+            print(f"[BASELINE] Timeout for {sig['session_id']}: {e}")
+            return None
         except Exception as e:
-            print(f"[BASELINE] Error for {sig['session_id']}: {e}")
+            print(f"[BASELINE] Unexpected error for {sig['session_id']}: {e}")
             return None
 
     def _store_comparison_data(self, comparison_id: str, proposed_result: Dict[str, Any],
@@ -399,23 +431,27 @@ class EnhancedSimulator:
             with self.engine.begin() as conn:
                 # Store framework comparison data
                 for result in [proposed_result, baseline_result]:
-                    if result:
-                        conn.execute(text("""
-                            INSERT INTO zta.framework_comparison
-                            (comparison_id, framework_type, session_id, decision, risk_score,
-                             enforcement, factors, processing_time_ms)
-                            VALUES (:comp_id, :framework, :session_id, :decision, :risk_score,
-                                    :enforcement, :factors, :processing_time)
-                        """), {
-                            "comp_id": comparison_id,
-                            "framework": result["framework"],
-                            "session_id": result["session_id"],
-                            "decision": result["decision"],
-                            "risk_score": float(result["risk_score"]),
-                            "enforcement": result["enforcement"],
-                            "factors": json.dumps(result["factors"]),
-                            "processing_time": result["processing_time_ms"]
-                        })
+                    if result and result.get("framework") and result.get("decision") != "unknown":
+                        try:
+                            conn.execute(text("""
+                                INSERT INTO zta.framework_comparison
+                                (comparison_id, framework_type, session_id, decision, risk_score,
+                                 enforcement, factors, processing_time_ms)
+                                VALUES (:comp_id, :framework, :session_id, :decision, :risk_score,
+                                        :enforcement, :factors, :processing_time)
+                            """), {
+                                "comp_id": comparison_id,
+                                "framework": result["framework"],
+                                "session_id": result["session_id"],
+                                "decision": result["decision"],
+                                "risk_score": float(result.get("risk_score", 0.0)),
+                                "enforcement": result.get("enforcement", "ALLOW"),
+                                "factors": json.dumps(result.get("factors", [])),
+                                "processing_time": result.get("processing_time_ms", 0)
+                            })
+                            print(f"[DB] Stored {result['framework']} framework data: {result['decision']}")
+                        except Exception as e:
+                            print(f"[DB] Failed to store {result.get('framework', 'unknown')} data: {e}")
 
                 # Store security classification data
                 ground_truth = signal.get("label", "BENIGN")
@@ -454,6 +490,10 @@ class EnhancedSimulator:
             max_samples = MAX_ROWS
         if sleep_time is None:
             sleep_time = SLEEP_BETWEEN
+
+        # Initialize data if not already done
+        if not hasattr(self, 'cicids_rows') or not self.cicids_rows:
+            self._init_simulator_data()
 
         if not self.cicids_rows:
             print("[SIM] No CICIDS data available")

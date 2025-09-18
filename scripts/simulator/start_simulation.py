@@ -38,7 +38,7 @@ async def check_service_health(client: httpx.AsyncClient, name: str, url: str) -
             return False
         else:
             # Standard health check
-            response = await client.get(url, timeout=10.0) 
+            response = await client.get(url, timeout=10.0)
             return response.status_code == 200
     except Exception as e:
         print(f"[HEALTH] {name}: {e}")
@@ -88,28 +88,63 @@ async def wait_for_services():
     print(f"[STARTUP] ❌ Timeout waiting for services after {MAX_WAIT_TIME}s")
     return False
 
-async def run_simulation():
-    """Run the enhanced simulation"""
-    print("[STARTUP] Starting enhanced simulation...")
+async def run_continuous_simulation():
+    """Run the enhanced simulation continuously for 24 hours"""
+    print("[STARTUP] Starting 24-hour continuous simulation...")
 
     # Import and run the enhanced simulator
     try:
         from enhanced_sim import EnhancedSimulator
+        from datetime import datetime, timedelta
 
         # Get simulation parameters from environment
-        samples = int(os.getenv("SIM_MAX_SAMPLES", "100"))
+        batch_size = int(os.getenv("SIM_MAX_ROWS", "100"))
         sleep_time = float(os.getenv("SIM_SLEEP", "1.0"))
+        sim_duration_hours = float(os.getenv("SIM_DURATION_HOURS", "24.0"))
 
         print(f"[STARTUP] Configuration:")
-        print(f"[STARTUP]   Samples: {samples}")
+        print(f"[STARTUP]   Batch size: {batch_size} samples")
         print(f"[STARTUP]   Sleep between requests: {sleep_time}s")
+        print(f"[STARTUP]   Duration: {sim_duration_hours} hours")
         print(f"[STARTUP]   Data directory: {os.getenv('DATA_DIR', '/app/data')}")
 
-        simulator = EnhancedSimulator()
-        result = await simulator.run_simulation(samples, sleep_time)
+        start_time = datetime.now()
+        end_time = start_time + timedelta(hours=sim_duration_hours)
 
-        print(f"[STARTUP] ✅ Simulation completed successfully!")
-        print(f"[STARTUP] Results: {result}")
+        print(f"[STARTUP] Started at: {start_time}")
+        print(f"[STARTUP] Will run until: {end_time}")
+
+        simulator = EnhancedSimulator()
+        batch_count = 0
+        total_samples = 0
+
+        # Run continuous batches until time limit
+        while datetime.now() < end_time:
+            batch_count += 1
+            remaining_time = end_time - datetime.now()
+
+            print(f"[BATCH] Starting batch {batch_count} (Remaining: {remaining_time})")
+
+            try:
+                result = await simulator.run_simulation(batch_size, sleep_time)
+                if result:
+                    total_samples += result.get('total_samples', 0)
+                    print(f"[BATCH] Completed batch {batch_count}: {result.get('total_samples', 0)} samples")
+                else:
+                    print(f"[BATCH] Batch {batch_count} failed - no result")
+            except Exception as e:
+                print(f"[BATCH] Batch {batch_count} error: {e}")
+                # Continue with next batch instead of failing completely
+                await asyncio.sleep(30)  # Wait 30s before retry
+
+            # Brief pause between batches
+            await asyncio.sleep(10)
+
+        duration = datetime.now() - start_time
+        print(f"[STARTUP] ✅ 24-hour simulation completed!")
+        print(f"[STARTUP] Total duration: {duration}")
+        print(f"[STARTUP] Total batches: {batch_count}")
+        print(f"[STARTUP] Total samples: {total_samples}")
 
     except Exception as e:
         print(f"[STARTUP] ❌ Simulation failed: {e}")
@@ -134,8 +169,8 @@ async def main():
     print("[STARTUP] Services ready! Waiting 10 seconds for full initialization...")
     await asyncio.sleep(10)
 
-    # Run the simulation
-    await run_simulation()
+    # Run the continuous simulation
+    await run_continuous_simulation()
 
     print("[STARTUP] 🎉 All done!")
 

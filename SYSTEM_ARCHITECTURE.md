@@ -344,14 +344,14 @@ zta.security_accuracy_summary:
 | Service | Port | Dependencies | Purpose |
 |-|||-|
 | **elasticsearch** | 9200 | None | Event storage & search |
-| **kibana** | 5601 | elasticsearch | Visualization dashboard |
-| **validation** | 8001 | elasticsearch, data files | Signal enrichment |
-| **trust** | 8002 | validation | Risk scoring |
-| **gateway** | 8003 | trust, validation | Final decisions |
-| **siem** | 8010 | elasticsearch | Threat detection |
-| **baseline** | 8020 | database | Traditional MFA |
-| **metrics** | 8030 | database | Performance analysis |
-| **simulator** | - | all services | Data generation |
+| **kibana**        | 5601 | elasticsearch | Visualization dashboard |
+| **validation**    | 8001 | elasticsearch, data files | Signal enrichment |
+| **trust**         | 8002 | validation | Risk scoring |
+| **gateway**       | 8003 | trust, validation | Final decisions |
+| **siem**          | 8010 | elasticsearch | Threat detection |
+| **baseline**      | 8020 | database | Traditional MFA |
+| **metrics**       | 8030 | database | Performance analysis |
+| **simulator**     | - | all services | Data generation |
 
 ### API Endpoints
 
