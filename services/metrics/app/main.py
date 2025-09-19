@@ -517,59 +517,118 @@ def get_comparison_metrics(
     hours: int = Query(24, description="Hours of data to analyze")
 ):
     """Get metrics formatted for baseline comparison"""
-
-    security = calculate_security_metrics(hours)
-    detection = calculate_detection_metrics(hours)
-    decision = calculate_decision_metrics(hours)
-
-    # Calculate key comparison metrics
-    total_events = sum(security.get("authentication_outcomes", {}).values())
-    successful_auths = security.get("authentication_outcomes", {}).get("success", 0)
-    mfa_stepups = security.get("authentication_outcomes", {}).get("sent", 0)
-
-    # Threat detection accuracy
-    threat_items = detection.get("threat_detection_by_label", [])
-    total_threats = sum(
-        item["count"] for item in threat_items
-        if item["original_label"] != "BENIGN"
-    )
-    detected_threats = sum(
-        item["count"] for item in threat_items
-        if (item["original_label"] != "BENIGN" and
-            item["detected_threats"] > 0)
-    )
-
-    # False positive rate (benign traffic flagged as threats)
-    benign_events = sum(
-        item["count"] for item in threat_items
-        if item["original_label"] == "BENIGN"
-    )
-    false_positives = sum(
-        item["count"] for item in threat_items
-        if (item["original_label"] == "BENIGN" and
-            item["detected_threats"] > 0)
-    )
-
-    return {
-        "summary": {
-            "total_events": total_events,
-            "success_rate": (successful_auths / max(total_events, 1)) * 100,
-            "mfa_stepup_rate": (mfa_stepups / max(total_events, 1)) * 100,
-            "threat_detection_rate": (
-                (detected_threats / max(total_threats, 1)) * 100
-                if total_threats > 0 else 0
-            ),
-            "false_positive_rate": (
-                (false_positives / max(benign_events, 1)) * 100
-                if benign_events > 0 else 0
-            ),
-        },
-        "detailed_metrics": {
-            "security": security,
-            "detection": detection,
-            "decision": decision
+    eng = get_engine()
+    if eng is None:
+        return {
+            "error": "Database connection unavailable",
+            "proposed_framework": {},
+            "baseline_framework": {},
+            "comparison": {}
         }
-    }
+
+    try:
+        with eng.connect() as conn:
+            # Get framework comparison data
+            framework_stats = conn.execute(text(f"""
+                SELECT
+                    framework_type,
+                    COUNT(*) as total_events,
+                    COUNT(*) FILTER (WHERE decision = 'allow') as allow_count,
+                    COUNT(*) FILTER (WHERE decision = 'step_up') as stepup_count,
+                    COUNT(*) FILTER (WHERE decision = 'deny') as deny_count,
+                    AVG(risk_score) as avg_risk_score,
+                    AVG(processing_time_ms) as avg_processing_time
+                FROM zta.framework_comparison
+                WHERE created_at > NOW() - INTERVAL '{hours} HOURS'
+                GROUP BY framework_type
+            """)).mappings().all()
+
+            # Get baseline-specific metrics
+            baseline_auth_stats = conn.execute(text(f"""
+                SELECT outcome, COUNT(*) as count
+                FROM zta.baseline_auth_attempts
+                WHERE created_at > NOW() - INTERVAL '{hours} HOURS'
+                GROUP BY outcome
+            """)).mappings().all()
+
+            # Get baseline trusted devices count
+            trusted_devices_count = conn.execute(text("""
+                SELECT COUNT(*) as count
+                FROM zta.baseline_trusted_devices
+                WHERE trust_status = 'trusted'
+                AND last_seen > NOW() - INTERVAL '7 DAYS'
+            """)).scalar() or 0
+
+            # Get security classifications
+            security_stats = conn.execute(text(f"""
+                SELECT
+                    framework_type,
+                    COUNT(*) as total_classifications,
+                    COUNT(*) FILTER (WHERE false_positive = TRUE) as false_positives,
+                    COUNT(*) FILTER (WHERE false_negative = TRUE) as false_negatives
+                FROM zta.security_classifications
+                WHERE created_at > NOW() - INTERVAL '{hours} HOURS'
+                GROUP BY framework_type
+            """)).mappings().all()
+
+            # Format results by framework
+            frameworks = {}
+            for stat in framework_stats:
+                framework = stat["framework_type"]
+                total = stat["total_events"] or 0
+                frameworks[framework] = {
+                    "total_events": total,
+                    "decisions": {
+                        "allow": stat["allow_count"] or 0,
+                        "step_up": stat["stepup_count"] or 0,
+                        "deny": stat["deny_count"] or 0
+                    },
+                    "success_rate": ((stat["allow_count"] or 0) / max(total, 1)) * 100,
+                    "mfa_rate": ((stat["stepup_count"] or 0) / max(total, 1)) * 100,
+                    "deny_rate": ((stat["deny_count"] or 0) / max(total, 1)) * 100,
+                    "avg_risk_score": float(stat["avg_risk_score"] or 0),
+                    "avg_processing_time_ms": float(stat["avg_processing_time"] or 0)
+                }
+
+            # Add security classification data
+            for stat in security_stats:
+                framework = stat["framework_type"]
+                if framework in frameworks:
+                    total_class = stat["total_classifications"] or 0
+                    frameworks[framework]["security_accuracy"] = {
+                        "total_classifications": total_class,
+                        "false_positives": stat["false_positives"] or 0,
+                        "false_negatives": stat["false_negatives"] or 0,
+                        "false_positive_rate": ((stat["false_positives"] or 0) / max(total_class, 1)) * 100,
+                        "false_negative_rate": ((stat["false_negatives"] or 0) / max(total_class, 1)) * 100
+                    }
+
+            # Add baseline-specific data
+            if "baseline" in frameworks:
+                baseline_auth_outcomes = {}
+                for outcome in baseline_auth_stats:
+                    baseline_auth_outcomes[outcome["outcome"]] = outcome["count"]
+
+                frameworks["baseline"]["auth_outcomes"] = baseline_auth_outcomes
+                frameworks["baseline"]["trusted_devices"] = trusted_devices_count
+
+            return {
+                "comparison_period_hours": hours,
+                "proposed_framework": frameworks.get("proposed", {}),
+                "baseline_framework": frameworks.get("baseline", {}),
+                "comparison": {
+                    "frameworks_available": list(frameworks.keys()),
+                    "total_comparisons": sum(fw.get("total_events", 0) for fw in frameworks.values()),
+                }
+            }
+
+    except Exception as e:
+        return {
+            "error": str(e),
+            "proposed_framework": {},
+            "baseline_framework": {},
+            "comparison": {}
+        }
 
 @api.get("/metrics/export")
 def export_metrics(

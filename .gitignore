@@ -63,3 +63,23 @@ coverage/
 *.lock
 .qodo
 .ropeproject
+
+# IDE and Development History
+.history/
+.ropeproject/
+
+# Temporary Analysis Directories
+enhanced_analysis_*/
+test_evaluation_*/
+thesis_validation_*/
+
+# Log Files
+*.log
+logs/
+
+# Thesis Working Files
+thesis.rtf
+*.rtf
+
+# Empty Directories
+kibana_setup/

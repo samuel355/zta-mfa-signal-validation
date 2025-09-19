@@ -11,12 +11,59 @@ api = FastAPI(title="Baseline MFA Service", version="1.0")
 
 _engine: Optional[Engine] = None
 
-# Simple baseline thresholds
-SUSPICIOUS_IP_PREFIXES = ["10.0.0.", "192.168.", "172.16.", "203.0.113."]  # Example suspicious ranges
-BUSINESS_HOURS_START = 8  # 8 AM
-BUSINESS_HOURS_END = 18   # 6 PM
-MAX_FAILED_ATTEMPTS = 3
-DEVICE_TRUST_HOURS = 24 * 7  # Trust devices for 1 week
+# Simple baseline thresholds (fixed for reasonable decision making)
+SUSPICIOUS_IP_PREFIXES = ["203.0.113.", "198.51.100.", "vpn", "proxy", "tor"]  # Actually suspicious ranges only
+BUSINESS_HOURS_START = 6  # 6 AM
+BUSINESS_HOURS_END = 22   # 10 PM (more reasonable business hours)
+MAX_FAILED_ATTEMPTS = 3   # Reasonable threshold
+DEVICE_TRUST_HOURS = 24 * 7  # 1 week trust period
+
+# Baseline risk factors (balanced for reasonable decisions)
+SUSPICIOUS_IP_WEIGHT = float(os.getenv("BASELINE_SUSPICIOUS_IP_WEIGHT", "0.25"))
+UNKNOWN_DEVICE_WEIGHT = float(os.getenv("BASELINE_UNKNOWN_DEVICE_WEIGHT", "0.15"))
+LOCATION_ANOMALY_WEIGHT = float(os.getenv("BASELINE_LOCATION_ANOMALY_WEIGHT", "0.10"))
+OUTSIDE_HOURS_WEIGHT = float(os.getenv("BASELINE_OUTSIDE_HOURS_WEIGHT", "0.08"))
+THREAT_WEIGHT = float(os.getenv("BASELINE_THREAT_WEIGHT", "0.20"))
+
+def _index_baseline_to_es(decision: Dict[str, Any], signals: Dict[str, Any]):
+    """Index baseline decisions to Elasticsearch for comparison"""
+    import httpx
+    import datetime as dt
+
+    es_host = os.getenv("ES_HOST", "http://elasticsearch:9200").rstrip("/")
+    es_user = os.getenv("ES_USER", "")
+    es_pass = os.getenv("ES_PASS", "")
+    es_api_key = os.getenv("ES_API_KEY", "")
+
+    if not es_host:
+        return
+
+    doc = {
+        "@timestamp": dt.datetime.utcnow().isoformat(),
+        "framework": "baseline",
+        "session_id": decision["session_id"],
+        "risk": float(decision["risk_score"]),
+        "decision": decision["decision"],
+        "enforcement": decision["enforcement"],
+        "factors": decision["factors"],
+        "processing_time_ms": decision.get("decision_time_ms", 0)
+    }
+
+    headers = {"content-type": "application/json"}
+    auth = None
+    if es_api_key:
+        headers["Authorization"] = f"ApiKey {es_api_key}"
+    elif es_user and es_pass:
+        auth = httpx.BasicAuth(es_user, es_pass)
+
+    try:
+        with httpx.Client(timeout=3, headers=headers, auth=auth) as c:
+            # Index to both mfa-events and baseline-specific index
+            r1 = c.post(f"{es_host}/mfa-events/_doc", json=doc)
+            r2 = c.post(f"{es_host}/baseline-decisions/_doc", json=doc)
+            print(f"[BASELINE] Indexed to ES: mfa-events({r1.status_code}), baseline-decisions({r2.status_code})")
+    except Exception as e:
+        print(f"[BASELINE] ES indexing failed: {e}")
 
 class BaselineRequest(BaseModel):
     signals: Dict[str, Any]
@@ -165,7 +212,10 @@ def detect_simple_threats(signals: Dict[str, Any]) -> list[str]:
     return threats
 
 def make_baseline_decision(signals: Dict[str, Any]) -> Dict[str, Any]:
-    """Make MFA decision using simple baseline logic"""
+    """Make MFA decision using simple baseline logic (fixed for reasonable decisions)"""
+    import time
+    decision_start_time = time.perf_counter()
+
     session_id = signals.get(
         "session_id", f"baseline-{int(time.time())}"
     )
@@ -173,6 +223,7 @@ def make_baseline_decision(signals: Dict[str, Any]) -> Dict[str, Any]:
     # Get basic information
     ip = signals.get("ip_geo", {}).get("ip", "")
     device_fingerprint = get_device_fingerprint(signals)
+    label = signals.get("label", "").upper()
 
     # Decision factors
     factors = []
@@ -181,43 +232,61 @@ def make_baseline_decision(signals: Dict[str, Any]) -> Dict[str, Any]:
     # Factor 1: Suspicious IP
     if is_suspicious_ip(ip):
         factors.append("SUSPICIOUS_IP")
-        risk_score += 0.3
+        risk_score += SUSPICIOUS_IP_WEIGHT
 
-    # Factor 2: Outside business hours
-    if is_outside_business_hours():
-        factors.append("OUTSIDE_HOURS")
-        risk_score += 0.2
+    # Factor 2: Outside business hours (only if combined with other factors)
+    outside_hours = is_outside_business_hours()
 
     # Factor 3: Unknown device
     if not is_trusted_device(device_fingerprint):
         factors.append("UNKNOWN_DEVICE")
-        risk_score += 0.2
+        risk_score += UNKNOWN_DEVICE_WEIGHT
+        # Only add hours penalty if device is also unknown
+        if outside_hours:
+            factors.append("OUTSIDE_HOURS")
+            risk_score += OUTSIDE_HOURS_WEIGHT
 
     # Factor 4: Recent failed attempts
     failed_attempts = check_failed_attempts(session_id)
     if failed_attempts >= MAX_FAILED_ATTEMPTS:
         factors.append("MULTIPLE_FAILURES")
-        risk_score += 0.4
+        risk_score += 0.3  # Reasonable penalty
 
-    # Factor 5: Simple threat detection
+    # Factor 5: Threat detection
     threats = detect_simple_threats(signals)
     if threats:
         factors.extend(threats)
-        risk_score += len(threats) * 0.15
+        risk_score += len(threats) * THREAT_WEIGHT
+
+    # Factor 6: Only flag location anomaly for non-benign traffic
+    if label != "BENIGN" and label:
+        gps = signals.get("gps", {})
+        wifi = signals.get("wifi_bssid", {})
+        if gps and wifi:
+            factors.append("LOCATION_ANOMALY")
+            risk_score += LOCATION_ANOMALY_WEIGHT
+
+        # Add moderate penalty for non-benign traffic
+        factors.append("NON_BENIGN_TRAFFIC")
+        risk_score += 0.12
 
     # Cap risk score
-    risk_score = min(1.0, risk_score)
+    risk_score = min(1.0, max(0.0, risk_score))
 
-    # Make decision
+    # Make decision with reasonable thresholds
     decision = "allow"
     enforcement = "ALLOW"
 
-    if risk_score >= 0.7:
+    if risk_score >= 0.7:  # High confidence deny
         decision = "deny"
         enforcement = "DENY"
-    elif risk_score >= 0.3 or factors:
+    elif risk_score >= 0.25:  # Moderate risk step-up
         decision = "step_up"
         enforcement = "MFA_REQUIRED"
+
+    # Calculate decision time
+    decision_end_time = time.perf_counter()
+    decision_time_ms = int((decision_end_time - decision_start_time) * 1000)
 
     return {
         "session_id": session_id,
@@ -225,14 +294,16 @@ def make_baseline_decision(signals: Dict[str, Any]) -> Dict[str, Any]:
         "enforcement": enforcement,
         "risk_score": round(risk_score, 3),
         "factors": factors,
-        "device_fingerprint": device_fingerprint
+        "device_fingerprint": device_fingerprint,
+        "decision_time_ms": decision_time_ms
     }
 
 def store_baseline_decision(decision: Dict[str, Any],
                           original_signals: Dict[str, Any]):
-    """Store baseline decision for comparison"""
+    """Store baseline decision for comparison and index to Elasticsearch"""
     eng = get_engine()
     if eng is None:
+        print("[BASELINE] No DB connection, skipping storage")
         return {"ok": False, "error": "No database connection"}
 
     try:
@@ -253,13 +324,14 @@ def store_baseline_decision(decision: Dict[str, Any],
                 "signals": json.dumps(original_signals),
             })
 
-            # Store auth attempt
+            # Store auth attempt with proper outcome
             if decision["decision"] == "allow":
                 outcome = "success"
             elif decision["decision"] == "deny":
                 outcome = "failed"
             else:
                 outcome = "mfa_required"
+
             conn.execute(text("""
                 INSERT INTO zta.baseline_auth_attempts
                 (session_id, outcome, risk_score, factors)
@@ -271,8 +343,8 @@ def store_baseline_decision(decision: Dict[str, Any],
                 "factors": json.dumps(decision["factors"]),
             })
 
-            # Update device trust if successful
-            if decision["decision"] == "allow":
+            # Update device trust for successful and step-up auths
+            if decision["decision"] in ["allow", "step_up"]:
                 conn.execute(text("""
                     INSERT INTO zta.baseline_trusted_devices
                     (device_fingerprint, trust_status, last_seen)
@@ -283,8 +355,13 @@ def store_baseline_decision(decision: Dict[str, Any],
                     "device": decision["device_fingerprint"]
                 })
 
+        # Index to Elasticsearch if decision warrants it
+        _index_baseline_to_es(decision, original_signals)
+
+        print(f"[BASELINE] Stored decision for {decision['session_id']}: {decision['decision']} (risk={decision['risk_score']})")
         return {"ok": True}
     except Exception as e:
+        print(f"[BASELINE] Storage error: {e}")
         return {"ok": False, "error": str(e)}
 
 # TOTP for MFA simulation

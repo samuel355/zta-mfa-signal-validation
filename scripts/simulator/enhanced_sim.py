@@ -5,7 +5,7 @@ Based on original sim.py but adds baseline framework comparison
 Uses proper STRIDE classification and full data complexity
 """
 import os, sys, csv, json, random, time
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 import httpx
 import asyncio
 from sqlalchemy import create_engine, text
@@ -421,8 +421,8 @@ class EnhancedSimulator:
             print(f"[BASELINE] Unexpected error for {sig['session_id']}: {e}")
             return None
 
-    def _store_comparison_data(self, comparison_id: str, proposed_result: Dict[str, Any],
-                              baseline_result: Dict[str, Any], signal: Dict[str, Any]):
+    def _store_comparison_data(self, comparison_id: str, proposed_result: Optional[Dict[str, Any]] = None,
+                              baseline_result: Optional[Dict[str, Any]] = None, signal: Optional[Dict[str, Any]] = None):
         """Store comparison data in database"""
         if not self.engine:
             return
@@ -431,7 +431,7 @@ class EnhancedSimulator:
             with self.engine.begin() as conn:
                 # Store framework comparison data
                 for result in [proposed_result, baseline_result]:
-                    if result and result.get("framework") and result.get("decision") != "unknown":
+                    if result and isinstance(result, dict) and result.get("framework") and result.get("decision") != "unknown":
                         try:
                             conn.execute(text("""
                                 INSERT INTO zta.framework_comparison
@@ -454,37 +454,41 @@ class EnhancedSimulator:
                             print(f"[DB] Failed to store {result.get('framework', 'unknown')} data: {e}")
 
                 # Store security classification data
-                ground_truth = signal.get("label", "BENIGN")
-                for result in [proposed_result, baseline_result]:
-                    if result:
-                        predicted_threats = result["factors"] if isinstance(result["factors"], list) else []
+                if signal:
+                    ground_truth = signal.get("label", "BENIGN")
+                    for result in [proposed_result, baseline_result]:
+                        if result and isinstance(result, dict):
+                            predicted_threats = result.get("factors", []) if isinstance(result.get("factors"), list) else []
 
-                        # Determine classification accuracy metrics
-                        is_malicious_actual = ground_truth.upper() != "BENIGN"
-                        has_threats_predicted = len(predicted_threats) > 0
+                            # Determine classification accuracy metrics
+                            is_malicious_actual = ground_truth.upper() != "BENIGN"
+                            has_threats_predicted = len(predicted_threats) > 0
 
-                        false_positive = not is_malicious_actual and has_threats_predicted
-                        false_negative = is_malicious_actual and not has_threats_predicted
+                            false_positive = not is_malicious_actual and has_threats_predicted
+                            false_negative = is_malicious_actual and not has_threats_predicted
 
-                        conn.execute(text("""
-                            INSERT INTO zta.security_classifications
-                            (session_id, original_label, predicted_threats, framework_type,
-                             false_positive, false_negative)
-                            VALUES (:session_id, :original_label, :predicted_threats, :framework,
-                                    :false_positive, :false_negative)
-                        """), {
-                            "session_id": result["session_id"],
-                            "original_label": ground_truth,
-                            "predicted_threats": json.dumps(predicted_threats),
-                            "framework": result["framework"],
-                            "false_positive": false_positive,
-                            "false_negative": false_negative
-                        })
+                            try:
+                                conn.execute(text("""
+                                    INSERT INTO zta.security_classifications
+                                    (session_id, original_label, predicted_threats, framework_type,
+                                     false_positive, false_negative)
+                                    VALUES (:session_id, :original_label, :predicted_threats, :framework,
+                                            :false_positive, :false_negative)
+                                """), {
+                                    "session_id": result["session_id"],
+                                    "original_label": ground_truth,
+                                    "predicted_threats": json.dumps(predicted_threats),
+                                    "framework": result["framework"],
+                                    "false_positive": false_positive,
+                                    "false_negative": false_negative
+                                })
+                            except Exception as e:
+                                print(f"[DB] Failed to store security classification: {e}")
 
         except Exception as e:
             print(f"[DB] Failed to store comparison data: {e}")
 
-    async def run_simulation(self, max_samples: int = None, sleep_time: float = None):
+    async def run_simulation(self, max_samples: Optional[int] = None, sleep_time: Optional[float] = None):
         """Run enhanced simulation with STRIDE scenarios"""
         if max_samples is None:
             max_samples = MAX_ROWS
@@ -493,7 +497,7 @@ class EnhancedSimulator:
 
         # Initialize data if not already done
         if not hasattr(self, 'cicids_rows') or not self.cicids_rows:
-            self._init_simulator_data()
+            self._load_data()
 
         if not self.cicids_rows:
             print("[SIM] No CICIDS data available")
@@ -542,48 +546,55 @@ class EnhancedSimulator:
                     proposed_task = self._call_proposed_framework(client, sig)
                     baseline_task = self._call_baseline_framework(client, sig)
 
-                    proposed_result, baseline_result = await asyncio.gather(
+                    results = await asyncio.gather(
                         proposed_task, baseline_task, return_exceptions=True
                     )
 
-                    # Handle exceptions
-                    if isinstance(proposed_result, Exception):
-                        print(f"[SIM] Proposed framework error: {proposed_result}")
-                        proposed_result = None
+                    proposed_result: Optional[Dict[str, Any]] = None
+                    baseline_result: Optional[Dict[str, Any]] = None
 
-                    if isinstance(baseline_result, Exception):
-                        print(f"[SIM] Baseline framework error: {baseline_result}")
-                        baseline_result = None
+                    # Handle exceptions and type-safe assignment
+                    if isinstance(results[0], Exception):
+                        print(f"[SIM] Proposed framework error: {results[0]}")
+                    elif isinstance(results[0], dict):
+                        proposed_result = results[0]
 
-                    # Store results if we have at least one
+                    if isinstance(results[1], Exception):
+                        print(f"[SIM] Baseline framework error: {results[1]}")
+                    elif isinstance(results[1], dict):
+                        baseline_result = results[1]
+
+                    # Store results if we have at least one successful result
                     if proposed_result or baseline_result:
                         self._store_comparison_data(comparison_id, proposed_result, baseline_result, sig)
                         successful_comparisons += 1
 
                         # Print results
-                        if proposed_result and baseline_result:
-                            print(f"[SIM]   Proposed: {proposed_result['decision']} (risk: {proposed_result['risk_score']:.3f}, {proposed_result['processing_time_ms']}ms)")
-                            print(f"[SIM]   Baseline: {baseline_result['decision']} (risk: {baseline_result['risk_score']:.3f}, {baseline_result['processing_time_ms']}ms)")
-                        elif proposed_result:
-                            print(f"[SIM]   Proposed: {proposed_result['decision']} (risk: {proposed_result['risk_score']:.3f}, {proposed_result['processing_time_ms']}ms)")
-                            print(f"[SIM]   Baseline: FAILED")
-                        elif baseline_result:
-                            print(f"[SIM]   Proposed: FAILED")
-                            print(f"[SIM]   Baseline: {baseline_result['decision']} (risk: {baseline_result['risk_score']:.3f}, {baseline_result['processing_time_ms']}ms)")
+                        if proposed_result and baseline_result and isinstance(proposed_result, dict) and isinstance(baseline_result, dict):
+                            print(f"[SIM]   Proposed: {proposed_result.get('decision', 'unknown')} (risk: {proposed_result.get('risk_score', 0.0):.3f}, {proposed_result.get('processing_time_ms', 0)}ms)")
+                            print(f"[SIM]   Baseline: {baseline_result.get('decision', 'unknown')} (risk: {baseline_result.get('risk_score', 0.0):.3f}, {baseline_result.get('processing_time_ms', 0)}ms)")
+                        elif proposed_result and isinstance(proposed_result, dict):
+                            print(f"[SIM]   Proposed: {proposed_result.get('decision', 'unknown')} (risk: {proposed_result.get('risk_score', 0.0):.3f}, {proposed_result.get('processing_time_ms', 0)}ms)")
+                            print("[SIM]   Baseline: FAILED")
+                        elif baseline_result and isinstance(baseline_result, dict):
+                            print("[SIM]   Proposed: FAILED")
+                            print(f"[SIM]   Baseline: {baseline_result.get('decision', 'unknown')} (risk: {baseline_result.get('risk_score', 0.0):.3f}, {baseline_result.get('processing_time_ms', 0)}ms)")
+                    else:
+                        print(f"[SIM]   Both frameworks failed for {sig.get('session_id', 'unknown')}")
 
                     # Sleep between requests
                     await asyncio.sleep(sleep_time)
                     sent += 1
 
                 except KeyboardInterrupt:
-                    print(f"[SIM] Simulation interrupted by user")
+                    print("[SIM] Simulation interrupted by user")
                     break
                 except Exception as e:
                     print(f"[SIM] Unexpected error for sample {sent+1}: {e}")
                     sent += 1
                     continue
 
-        print(f"[SIM] Simulation completed!")
+        print("[SIM] Simulation completed!")
         print(f"[SIM] Successful comparisons: {successful_comparisons}/{sent}")
         print(f"[SIM] Comparison ID: {comparison_id}")
 
