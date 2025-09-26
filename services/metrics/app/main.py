@@ -7,9 +7,12 @@ from datetime import datetime
 from pathlib import Path
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
+import logging
+from app.thesis_metrics import ThesisMetricsCalculator
 
 api = FastAPI(title="Metrics Collection Service", version="1.0")
 
+logger = logging.getLogger(__name__)
 _engine: Optional[Engine] = None
 
 class MetricsResponse(BaseModel):
@@ -649,3 +652,121 @@ def export_metrics(
         }
 
     return comprehensive
+
+@api.get("/thesis/security-accuracy")
+def get_thesis_security_accuracy(
+    hours: int = Query(24, description="Hours of data to analyze")
+):
+    """Get security accuracy metrics (TPR, FPR, Precision, Recall, F1-Score) for thesis analysis"""
+    eng = get_engine()
+    if eng is None:
+        return {"error": "Database connection unavailable"}
+
+    try:
+        calculator = ThesisMetricsCalculator(eng)
+        return calculator.calculate_security_accuracy_metrics(hours)
+    except Exception as e:
+        logger.error(f"Error calculating security accuracy metrics: {e}")
+        return {"error": str(e)}
+
+@api.get("/thesis/failed-logins")
+def get_thesis_failed_logins(
+    hours: int = Query(24, description="Hours of data to analyze")
+):
+    """Get failed login attempts comparison for thesis analysis"""
+    eng = get_engine()
+    if eng is None:
+        return {"error": "Database connection unavailable"}
+
+    try:
+        calculator = ThesisMetricsCalculator(eng)
+        return calculator.calculate_failed_login_attempts(hours)
+    except Exception as e:
+        logger.error(f"Error calculating failed login metrics: {e}")
+        return {"error": str(e)}
+
+@api.get("/thesis/performance")
+def get_thesis_performance(
+    hours: int = Query(24, description="Hours of data to analyze")
+):
+    """Get comprehensive performance metrics for thesis analysis"""
+    eng = get_engine()
+    if eng is None:
+        return {"error": "Database connection unavailable"}
+
+    try:
+        calculator = ThesisMetricsCalculator(eng)
+        return calculator.calculate_system_performance_metrics(hours)
+    except Exception as e:
+        logger.error(f"Error calculating performance metrics: {e}")
+        return {"error": str(e)}
+
+@api.get("/thesis/usability")
+def get_thesis_usability(
+    hours: int = Query(24, description="Hours of data to analyze")
+):
+    """Get usability metrics for thesis analysis"""
+    eng = get_engine()
+    if eng is None:
+        return {"error": "Database connection unavailable"}
+
+    try:
+        calculator = ThesisMetricsCalculator(eng)
+        return calculator.calculate_usability_metrics(hours)
+    except Exception as e:
+        logger.error(f"Error calculating usability metrics: {e}")
+        return {"error": str(e)}
+
+@api.get("/thesis/privacy")
+def get_thesis_privacy(
+    hours: int = Query(24, description="Hours of data to analyze")
+):
+    """Get privacy preserving metrics for thesis analysis"""
+    eng = get_engine()
+    if eng is None:
+        return {"error": "Database connection unavailable"}
+
+    try:
+        calculator = ThesisMetricsCalculator(eng)
+        return calculator.calculate_privacy_metrics(hours)
+    except Exception as e:
+        logger.error(f"Error calculating privacy metrics: {e}")
+        return {"error": str(e)}
+
+@api.get("/thesis/comprehensive")
+def get_thesis_comprehensive_analysis(
+    hours: int = Query(24, description="Hours of data to analyze")
+):
+    """Get comprehensive thesis metrics analysis including all categories"""
+    eng = get_engine()
+    if eng is None:
+        return {"error": "Database connection unavailable"}
+
+    try:
+        calculator = ThesisMetricsCalculator(eng)
+        return calculator.generate_comprehensive_comparison(hours)
+    except Exception as e:
+        logger.error(f"Error generating comprehensive analysis: {e}")
+        return {"error": str(e)}
+
+@api.get("/thesis/elasticsearch-export")
+def get_thesis_elasticsearch_export(
+    hours: int = Query(24, description="Hours of data to analyze")
+):
+    """Export thesis metrics in Elasticsearch-ready format"""
+    eng = get_engine()
+    if eng is None:
+        return {"error": "Database connection unavailable"}
+
+    try:
+        calculator = ThesisMetricsCalculator(eng)
+        documents = calculator.export_for_elasticsearch(hours)
+        return {
+            "documents": documents,
+            "count": len(documents),
+            "analysis_period_hours": hours,
+            "export_timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error exporting for Elasticsearch: {e}")
+        return {"error": str(e)}

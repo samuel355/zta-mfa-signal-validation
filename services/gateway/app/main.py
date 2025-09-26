@@ -231,64 +231,8 @@ def decision(payload: ValidateAndDecide):
 
 
     # ---------------- SIEM Persistence ----------------
-    if float(risk) >= 0.25:  # only persist risky events
-        eng = get_engine()
-        if eng is not None:
-            try:
-                # Map reasons -> STRIDE values exactly as schema expects
-                STRIDE_MAP = {
-                    "SPOOFING": "Spoofing",
-                    "TLS": "Tampering",
-                    "TLS_ANOMALY": "Tampering",
-                    "POSTURE": "Tampering",
-                    "POSTURE_OUTDATED": "Tampering",
-                    "REPUDIATION": "Repudiation",
-                    "DOWNLOAD": "InformationDisclosure",
-                    "EXFIL": "InformationDisclosure",
-                    "DOS": "DoS",
-                    "DDOS": "DoS",
-                    "POLICY": "EoP",
-                    "EOP": "EoP",
-                }
-
-                stride_value = None
-                for r in reasons:
-                    for k, v in STRIDE_MAP.items():
-                        if r.upper().startswith(k):
-                            stride_value = v
-                            break
-                    if stride_value:
-                        break
-
-                # if nothing mapped, mark Unknown safely (skip violation)
-                if not stride_value:
-                    stride_value = "Spoofing"
-
-                severity = "high" if risk >= 0.7 else "medium"
-
-                with eng.begin() as conn:
-                    conn.execute(
-                        text("""
-                            INSERT INTO zta.siem_alerts (session_id, stride, severity, source, raw)
-                            VALUES (:sid, :stride, :sev, :src, CAST(:raw AS jsonb))
-                        """),
-                        {
-                            "sid": session_id,
-                            "stride": stride_value,
-                            "sev": severity,
-                            "src": "es:mfa-events",
-                            "raw": json.dumps({
-                                "risk": risk,
-                                "reasons": reasons,
-                                "decision": decision,
-                                "enforcement": enforcement,
-                                "signals_used": list(weights.keys())
-                            }),
-                        }
-                    )
-                print(f"[GATEWAY] SIEM alert inserted for {session_id} (stride={stride_value}, risk={risk})")
-            except Exception as ex:
-                print(f"[GATEWAY] Failed to insert SIEM alert: {ex}")
+    # SIEM alerts are now handled by the dedicated SIEM service worker
+    # which processes MFA events to avoid double insertion
 
     # ---------------- Elasticsearch index ----------------
     if decision.lower() in ("step_up", "deny"):

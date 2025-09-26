@@ -94,10 +94,20 @@ async def _worker():
                     enforcement = d.get("enforcement","ALLOW")
                     sev = severity_from_risk(risk, decision, enforcement)
 
-                    conn.execute(text("""
-                        insert into zta.siem_alerts (session_id, stride, severity, source, raw)
-                        values (:sid, :stride, :sev, 'es:mfa-events*', cast(:raw as jsonb))
-                    """), {"sid": r["session_id"], "stride": stride, "sev": sev, "raw": json.dumps(d)})
+                    # Check if SIEM alert already exists for this session_id and source
+                    existing = conn.execute(text("""
+                        select count(*) as cnt from zta.siem_alerts
+                        where session_id = :sid and source like 'es:mfa-events%'
+                    """), {"sid": r["session_id"]}).scalar()
+
+                    if existing == 0:
+                        conn.execute(text("""
+                            insert into zta.siem_alerts (session_id, stride, severity, source, raw)
+                            values (:sid, :stride, :sev, 'es:mfa-events*', cast(:raw as jsonb))
+                        """), {"sid": r["session_id"], "stride": stride, "sev": sev, "raw": json.dumps(d)})
+                        print(f"[siem] Created new alert for session {r['session_id']}")
+                    else:
+                        print(f"[siem] Skipping duplicate alert for session {r['session_id']}")
 
                     _last_ts = float(r["ts"])
         except Exception as ex:

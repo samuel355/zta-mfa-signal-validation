@@ -10,7 +10,7 @@ services:
     environment:
       - discovery.type=single-node
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
-      - xpack.security.enabled=true
+      - xpack.security.enabled=false
       - xpack.security.transport.ssl.enabled=false
     ports:
       - "${ELASTIC_PORT}:9200"
@@ -201,6 +201,26 @@ services:
     depends_on: [elasticsearch]
     networks: [zta_net]
 
+  indexer:
+    build: ../services/indexer
+    container_name: zta_indexer
+    environment:
+      ES_HOST: ${ES_HOST:-http://elasticsearch:9200}
+      ES_USER: ${ES_USER:-}
+      ES_PASS: ${ES_PASS:-}
+      ES_API_KEY: ${ES_API_KEY}
+      DB_DSN: ${DB_DSN}
+      PGOPTIONS: ${PGOPTIONS}
+      METRICS_URL: http://metrics:8000
+      INDEXER_MODE: ${INDEXER_MODE:-continuous}
+      INDEXER_INTERVAL_MINUTES: ${INDEXER_INTERVAL_MINUTES:-5}
+      INDEXER_BATCH_HOURS: ${INDEXER_BATCH_HOURS:-1}
+      INDEXER_HISTORICAL_DAYS: ${INDEXER_HISTORICAL_DAYS:-7}
+      INDEXER_ONCE_HOURS: ${INDEXER_ONCE_HOURS:-24}
+    depends_on: [elasticsearch, metrics, siem, gateway, trust, validation]
+    networks: [zta_net]
+    restart: unless-stopped
+
   simulator:
     build:
       context: ..
@@ -242,6 +262,6 @@ services:
       SIM_PATCHED_TRUE_RATE: "${SIM_PATCHED_TRUE_RATE}"
       SIM_GPS_OFFSET_KM: "${SIM_GPS_OFFSET_KM}"
       SIM_DURATION_HOURS: "${SIM_DURATION_HOURS:-24.0}"
-    depends_on: [validation, gateway, metrics, baseline]
+    depends_on: [validation, gateway, metrics, baseline, indexer]
     networks: [zta_net]
     restart: unless-stopped
