@@ -1,85 +1,172 @@
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-dist/
-build/
-.next/
-out/
-
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
 *.egg
 *.egg-info/
+dist/
+build/
+eggs/
 .eggs/
-*.env
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.manifest
+*.spec
+.Python
+develop-eggs/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
 .env
 .venv
-*.pyo
-*.pyd
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.python-version
 
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-
-# Linux
-*~
-.nfs*
-
-# IDEs / Editors
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# Logs
-*.log
-logs/
-debug.log
-
-# Coverage / Testing
-coverage/
-.nyc_output/
-.jest/
-.pytest_cache/
-
-# Environment
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Other
-*.lock
-.qodo
-.ropeproject
-
-# IDE and Development History
-.history/
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
 .ropeproject/
 
-# Temporary Analysis Directories
-enhanced_analysis_*/
-test_evaluation_*/
-thesis_validation_*/
-
-# Log Files
+# Docker
 *.log
+docker-compose.override.yml
+.docker/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+postgres-data/
+mysql-data/
+
+# Elasticsearch/Kibana
+elasticsearch-data/
+kibana-data/
+
+# Logs
 logs/
+*.log
+*.out
+*.err
+log/
+tmp/
 
-# Thesis Working Files
-thesis.rtf
-*.rtf
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
 
-# Empty Directories
-kibana_setup/
+# Test coverage
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Archives and backups
+*.old
+*.bak
+*.backup
+archive/
+backups/
+
+# Generated files
+*.pid
+*.seed
+*.pid.lock
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.Trash-*
+
+# Security - Never commit these
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+secrets/
+credentials/
+private/
+
+# Data files (too large for git)
+data/cicids/*.csv
+data/geolite2/*.mmdb
+!data/wifi/wigle_sample.csv
+!data/device_posture/device_posture.csv
+!data/tls/ja3_fingerprints.csv
+
+# Documentation build
+docs/_build/
+docs/_static/
+docs/_templates/
+
+# Node (if using any frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# Compiled files
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# Package files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Performance profiling
+*.prof
+*.lprof
+
+# Research/thesis specific (archived)
+*thesis*.py.old
+*THESIS*
+thesis_*.log

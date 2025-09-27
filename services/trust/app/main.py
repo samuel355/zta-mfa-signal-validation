@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
+from decision_engine import process_proposed_request, get_proposed_thesis_metrics, reset_proposed_metrics, compare_frameworks
 
 api = FastAPI(title="Trust Service", version="0.5")
 
@@ -61,98 +62,56 @@ def health():
 # ---------- Score ----------
 @api.post("/score")
 def score(payload: ScorePayload):
+    """Score using thesis-compliant proposed framework engine"""
     import time
     decision_start_time = time.perf_counter()
 
-    reasons = [r.upper() for r in (payload.reasons or [])]
-    weights = payload.weights or {}
-    siem    = payload.siem or {"high": 0, "medium": 0}
-
-    # --- Determine if this is benign traffic for thesis-compliant metrics
-    label = payload.vector.get("label", "").upper()
-    is_benign_traffic = label == "BENIGN"
-    is_expected_legitimate = payload.vector.get("user_behavior") == "normal"
-
-    # --- Base risk (lower for proposed framework to reduce false positives)
-    if is_benign_traffic and weights:
-        # For benign traffic with good signal quality, start with very low risk
-        base_risk = TRUST_BASE_GAIN * 0.5
-    else:
-        base_risk = TRUST_BASE_GAIN if weights else TRUST_FALLBACK_OBSERVED
-
-    risk = base_risk
-
-    # --- STRIDE mapping bumps (adjusted for thesis compliance) ---
-    stride_map = {
-        "SPOOFING": ("Spoofing", 0.15),
-        "DOS": ("Denial of Service", 0.35),
-        "DDOS": ("Denial of Service", 0.35),
-        "POLICY_ELEVATION": ("Elevation of Privilege", 0.30),
-        "DOWNLOAD_EXFIL": ("Information Disclosure", 0.25),
-        "TLS_ANOMALY": ("Tampering", 0.18),
-        "POSTURE_OUTDATED": ("Tampering", 0.12),
-        "REPUDIATION": ("Repudiation", 0.20),
-        "GPS_MISMATCH": ("Spoofing", 0.10),
-        "WIFI_MISMATCH": ("Spoofing", 0.08)
+    # Prepare validated context for the thesis engine
+    validated_context = {
+        'vector': payload.vector,
+        'weights': payload.weights or {},
+        'reasons': payload.reasons or [],
+        'siem': payload.siem or {"high": 0, "medium": 0}
     }
-    stride_used = []
 
-    # Apply confidence weighting for proposed framework
-    confidence_multiplier = 1.0
-    if weights:
-        total_confidence = sum(weights.values())
-        if total_confidence > 0:
-            confidence_multiplier = min(total_confidence / VALIDATION_CONFIDENCE_THRESHOLD, 1.2)
+    # Use the thesis-compliant proposed engine
+    result = process_proposed_request(validated_context)
 
-    for r in reasons:
-        for k, (stride_name, bump) in stride_map.items():
-            if r.startswith(k):
-                # Apply confidence weighting to reduce false positives
-                adjusted_bump = bump * confidence_multiplier
-                # Further reduce for benign traffic
-                if is_benign_traffic:
-                    adjusted_bump *= 0.6
-                risk += adjusted_bump
-                stride_used.append(stride_name)
+    # Extract decision information from the result
+    session_id = result.get("session_id", payload.vector.get("session_id", f"sess-{os.urandom(4).hex()}"))
+    decision = result.get("decision", "allow")
+    risk = result.get("risk_score", 0.0)
 
-    # --- SIEM bumps (with confidence weighting) ---
-    siem_high = siem.get("high", 0)
-    siem_medium = siem.get("medium", 0)
+    # Extract additional fields from the structured response
+    reasons = result.get("details", {}).get("reasons", payload.reasons or [])
+    weights = payload.weights or {}
+    siem = payload.siem or {}
 
-    if siem_high > 0 or siem_medium > 0:
-        siem_bump = siem_high * SIEM_HIGH_BUMP + siem_medium * SIEM_MED_BUMP
-        # Apply confidence weighting to SIEM alerts
-        if weights:
-            siem_bump *= confidence_multiplier
-        risk += siem_bump
+    # Extract validation metrics
+    validation_metrics = result.get("validation_metrics", {})
+    confidence_multiplier = validation_metrics.get("overall_confidence", 1.0)
 
-    # normalize
-    risk = max(0.0, min(1.0, risk))
+    # Extract details
+    details = result.get("details", {})
+    is_benign_traffic = details.get("actual_threat_level", "benign") == "benign"
 
-    # --- Decision Logic (Thesis-compliant) ---
-    decision = "allow"
+    # Extract STRIDE components (could be in reasons or generated based on risk)
+    stride_components = []
+    if "spoofing" in str(reasons).lower():
+        stride_components.append("Spoofing")
+    if "tampering" in str(reasons).lower():
+        stride_components.append("Tampering")
+    if risk > 0.5:
+        stride_components.append("EoP")
+    if not stride_components:
+        stride_components = ["None"]
 
-    # More nuanced decision logic for thesis metrics
-    if risk >= DENY_T:
-        decision = "deny"
-    elif risk >= ALLOW_T:
-        # For benign traffic, be more selective about step-up
-        if is_benign_traffic and risk < (ALLOW_T * 1.5):
-            # Check if we have high confidence in signals
-            if weights and sum(weights.values()) >= VALIDATION_CONFIDENCE_THRESHOLD:
-                # High confidence in benign assessment, allow instead of step-up
-                decision = "allow"
-            else:
-                decision = "step_up"
-        else:
-            decision = "step_up"
-
-    # Calculate decision time (just the decision logic, not persistence)
+    # Calculate decision time
     decision_end_time = time.perf_counter()
-    decision_time_ms = int((decision_end_time - decision_start_time) * 1000)
+    decision_time_ms = result.get("thesis_metrics", {}).get("processing_time_ms",
+                                  int((decision_end_time - decision_start_time) * 1000))
 
     # --- Persist decision ---
-    session_id = payload.vector.get("session_id") or f"sess-{os.urandom(4).hex()}"
     persistence = {"ok": False}
     eng = get_engine()
     if eng is not None:
@@ -171,11 +130,14 @@ def score(payload: ScorePayload):
                             "reasons": reasons,
                             "weights": weights,
                             "siem_bump": siem,
-                            "stride": list(set(stride_used)),  # canonical STRIDE labels
+                            "stride": stride_components,
                             "decision_time_ms": decision_time_ms,
                             "confidence_multiplier": confidence_multiplier,
                             "is_benign_traffic": is_benign_traffic,
-                            "signal_quality": sum(weights.values()) if weights else 0
+                            "signal_quality": validation_metrics.get("signal_coverage", sum(weights.values()) if weights else 0),
+                            "validation_confidence": confidence_multiplier,
+                            "enrichment_quality": validation_metrics.get("enrichment_quality_score", 0.8),
+                            "context_mismatches": details.get("context_mismatches", 0)
                         })
                     }
                 )
@@ -185,11 +147,34 @@ def score(payload: ScorePayload):
             persistence = {"ok": False, "error": str(e)}
             print(f"[TRUST][DB] Insert failed: {e}")
 
+    # Return response compatible with existing API
     return {
         "risk": round(risk, 3),
         "decision": decision,
         "persistence": persistence,
         "decision_time_ms": decision_time_ms,
-        "confidence_score": round(sum(weights.values()) if weights else 0, 3),
-        "stride_components": list(set(stride_used))
+        "confidence_score": round(confidence_multiplier, 3),
+        "stride_components": stride_components,
+        "framework_type": "proposed",
+        "validation_applied": True,
+        "enrichment_applied": True,
+        "thesis_metrics": result.get("thesis_metrics", {}),
+        "validation_metrics": validation_metrics
     }
+
+# ---------- Additional Endpoints ----------
+@api.get("/metrics")
+def get_metrics():
+    """Get current thesis metrics for the proposed framework"""
+    return get_proposed_thesis_metrics()
+
+@api.post("/reset_metrics")
+def reset_metrics():
+    """Reset metrics for testing"""
+    reset_proposed_metrics()
+    return {"status": "metrics_reset", "framework": "proposed"}
+
+@api.get("/compare")
+def compare():
+    """Compare baseline vs proposed frameworks"""
+    return compare_frameworks()

@@ -1,0 +1,9 @@
+Good now i want you to go through the code. the framework must work as the results or demo results i posted. use it as guidance to make it work actually so when i am task to do a demo infront of my stakeholders then it be from the actual framework vs the baseline that's generating the results and not a copy pasted images i added to generate the result. you get it. So the placeholders as a guide. something like reverse engineering. you can check the database folder for the database structure for the framework you can have access to the .env file if need be to add values in there and you can also add new tables to supase if we have to. all i am asking is that the framework should work and we should able to come up with the results as i posted. and the baseline it seems it used working hours and the proposed does not use working hours. the main difference is that the two frameworks ingest same signals but only the proposed that has validation and enrichment so if one frameowrk has working hours and others doesn't, then it does not make sense. so let's make this work. i trust you. You are an expert in this bear in mind.
+
+# Complete automated setup
+python3 setup_framework.py
+
+# Or manually:
+docker compose -f compose/docker-compose.yml up -d
+python3 scripts/generate_framework_data.py
+python3 scripts/setup_dashboards.py

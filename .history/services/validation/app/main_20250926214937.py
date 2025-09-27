@@ -5,7 +5,7 @@ import os, json
 import httpx
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
-from enrichment import enrich_all, DATA_STATUS
+from .enrichment import enrich_all, DATA_STATUS
 
 api = FastAPI(title="Validation Service", version="0.4")
 

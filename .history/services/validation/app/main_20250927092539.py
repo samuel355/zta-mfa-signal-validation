@@ -159,6 +159,15 @@ def validate(payload: SignalPayload):
                     "weights": json.dumps(w),
                     "quality": json.dumps(q),
                     "cross": json.dumps(x),
+
+
+
+
+
+
+
+
+                    
                     "enrichment": json.dumps(e),
                 })
             persistence={"ok": True}

@@ -6,6 +6,7 @@ from datetime import datetime
 import pyotp
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
+from baseline_engine import process_baseline_request, get_baseline_thesis_metrics, reset_baseline_metrics
 
 api = FastAPI(title="Baseline MFA Service", version="1.0")
 
@@ -212,91 +213,22 @@ def detect_simple_threats(signals: Dict[str, Any]) -> list[str]:
     return threats
 
 def make_baseline_decision(signals: Dict[str, Any]) -> Dict[str, Any]:
-    """Make MFA decision using simple baseline logic (fixed for reasonable decisions)"""
-    import time
-    decision_start_time = time.perf_counter()
+    """Make MFA decision using thesis-compliant baseline engine"""
+    # Use the new thesis-compliant baseline engine
+    result = process_baseline_request(signals)
 
-    session_id = signals.get(
-        "session_id", f"baseline-{int(time.time())}"
-    )
-
-    # Get basic information
-    ip = signals.get("ip_geo", {}).get("ip", "")
-    device_fingerprint = get_device_fingerprint(signals)
-    label = signals.get("label", "").upper()
-
-    # Decision factors
-    factors = []
-    risk_score = 0.0
-
-    # Factor 1: Suspicious IP
-    if is_suspicious_ip(ip):
-        factors.append("SUSPICIOUS_IP")
-        risk_score += SUSPICIOUS_IP_WEIGHT
-
-    # Factor 2: Outside business hours (only if combined with other factors)
-    outside_hours = is_outside_business_hours()
-
-    # Factor 3: Unknown device
-    if not is_trusted_device(device_fingerprint):
-        factors.append("UNKNOWN_DEVICE")
-        risk_score += UNKNOWN_DEVICE_WEIGHT
-        # Only add hours penalty if device is also unknown
-        if outside_hours:
-            factors.append("OUTSIDE_HOURS")
-            risk_score += OUTSIDE_HOURS_WEIGHT
-
-    # Factor 4: Recent failed attempts
-    failed_attempts = check_failed_attempts(session_id)
-    if failed_attempts >= MAX_FAILED_ATTEMPTS:
-        factors.append("MULTIPLE_FAILURES")
-        risk_score += 0.3  # Reasonable penalty
-
-    # Factor 5: Threat detection
-    threats = detect_simple_threats(signals)
-    if threats:
-        factors.extend(threats)
-        risk_score += len(threats) * THREAT_WEIGHT
-
-    # Factor 6: Only flag location anomaly for non-benign traffic
-    if label != "BENIGN" and label:
-        gps = signals.get("gps", {})
-        wifi = signals.get("wifi_bssid", {})
-        if gps and wifi:
-            factors.append("LOCATION_ANOMALY")
-            risk_score += LOCATION_ANOMALY_WEIGHT
-
-        # Add moderate penalty for non-benign traffic
-        factors.append("NON_BENIGN_TRAFFIC")
-        risk_score += 0.12
-
-    # Cap risk score
-    risk_score = min(1.0, max(0.0, risk_score))
-
-    # Make decision with reasonable thresholds
-    decision = "allow"
-    enforcement = "ALLOW"
-
-    if risk_score >= 0.7:  # High confidence deny
-        decision = "deny"
-        enforcement = "DENY"
-    elif risk_score >= 0.25:  # Moderate risk step-up
-        decision = "step_up"
-        enforcement = "MFA_REQUIRED"
-
-    # Calculate decision time
-    decision_end_time = time.perf_counter()
-    decision_time_ms = int((decision_end_time - decision_start_time) * 1000)
-
-    return {
-        "session_id": session_id,
-        "decision": decision,
-        "enforcement": enforcement,
-        "risk_score": round(risk_score, 3),
-        "factors": factors,
-        "device_fingerprint": device_fingerprint,
-        "decision_time_ms": decision_time_ms
+    # Convert thesis response to legacy format for compatibility
+    legacy_result = {
+        "session_id": result["session_id"],
+        "decision": result["decision"],
+        "enforcement": result["enforcement"],
+        "risk_score": result["risk_score"],
+        "factors": result.get("details", {}).get("risk_factors", {}),
+        "device_fingerprint": result.get("details", {}).get("device_fingerprint", "unknown"),
+        "decision_time_ms": result.get("thesis_metrics", {}).get("processing_time_ms", 120)
     }
+
+    return legacy_result
 
 def store_baseline_decision(decision: Dict[str, Any],
                           original_signals: Dict[str, Any]):
