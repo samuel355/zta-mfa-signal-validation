@@ -63,25 +63,35 @@ class EnhancedSimulator:
         self._setup_stride_buckets()
 
     def _init_database(self):
-        """Initialize database connection with proper error handling"""
+        """Initialize database connection using validation service pattern"""
+        self.engine = self._get_engine()
+
+    def _get_engine(self):
+        """Get database engine using validation service pattern"""
+        dsn = DB_DSN.strip()
+        if not dsn:
+            print("[DB] DB_DSN missing; skipping persistence")
+            return None
+            
+        if dsn.startswith("postgresql://"):
+            dsn = "postgresql+psycopg://" + dsn[len("postgresql://"):]
+        elif dsn.startswith("postgres://"):
+            dsn = "postgresql+psycopg://" + dsn[len("postgres://"):]
+
+        # Ensure SSL for remote connections
+        if "localhost" not in dsn and "127.0.0.1" not in dsn and "sslmode=" not in dsn:
+            dsn += ("&" if "?" in dsn else "?") + "sslmode=require"
+
         try:
-            dsn = DB_DSN
-            if dsn.startswith("postgresql://"):
-                dsn = "postgresql+psycopg://" + dsn[len("postgresql://"):]
-            elif dsn.startswith("postgres://"):
-                dsn = "postgresql+psycopg://" + dsn[len("postgres://"):]
-
-            # Ensure SSL for remote connections
-            if "localhost" not in dsn and "127.0.0.1" not in dsn and "sslmode=" not in dsn:
-                dsn += ("&" if "?" in dsn else "?") + "sslmode=require"
-
-            self.engine = create_engine(dsn, pool_pre_ping=True)
-            with self.engine.connect() as conn:
+            engine = create_engine(dsn, pool_pre_ping=True, future=True)
+            with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
-            print(f"[DB] Connected to database successfully")
+            print(f"[DB] Database engine created successfully")
+            return engine
         except Exception as e:
-            print(f"[DB] Failed to connect to database: {e}")
-            self.engine = None
+            print(f"[DB] Failed to create database engine: {e}")
+            print("[DB] Continuing without database persistence")
+            return None
 
     def _read_csv(self, path):
         """Read CSV file"""
@@ -423,12 +433,13 @@ class EnhancedSimulator:
 
     def _store_comparison_data(self, comparison_id: str, proposed_result: Optional[Dict[str, Any]] = None,
                               baseline_result: Optional[Dict[str, Any]] = None, signal: Optional[Dict[str, Any]] = None):
-        """Store comparison data in database"""
-        if not self.engine:
+        """Store comparison data in database using validation service pattern"""
+        eng = self._get_engine()
+        if eng is None:
             return
 
         try:
-            with self.engine.begin() as conn:
+            with eng.begin() as conn:
                 # Store framework comparison data
                 for result in [proposed_result, baseline_result]:
                     if result and isinstance(result, dict) and result.get("framework") and result.get("decision") != "unknown":
