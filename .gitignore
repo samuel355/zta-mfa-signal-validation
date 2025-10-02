@@ -128,6 +128,10 @@ data/geolite2/*.mmdb
 !data/wifi/wigle_sample.csv
 !data/device_posture/device_posture.csv
 !data/tls/ja3_fingerprints.csv
+*.csv
+*.mmdb
+data/
+
 
 # Documentation build
 docs/_build/

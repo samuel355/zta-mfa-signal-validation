@@ -15,6 +15,7 @@ Key Improvements over Baseline:
 import time
 import json
 import random
+import os
 from typing import Dict, Any, List, Tuple, Optional
 from datetime import datetime, timedelta
 import logging
@@ -46,10 +47,11 @@ class ProposedThesisConfig:
     PROCESSING_TIME_RANGE = (120, 160)  # More complex but efficient processing
 
     # Enhanced Risk Thresholds (More Nuanced)
-    LOW_RISK_THRESHOLD = 0.12
-    MEDIUM_RISK_THRESHOLD = 0.35
-    HIGH_RISK_THRESHOLD = 0.70
-    DENY_THRESHOLD = 0.80
+    # Strict env-driven thresholds (fallbacks shown)
+    LOW_RISK_THRESHOLD = float(os.getenv('ALLOW_T', '0.30'))
+    MEDIUM_RISK_THRESHOLD = LOW_RISK_THRESHOLD
+    HIGH_RISK_THRESHOLD = float(os.getenv('DENY_T', '0.70'))
+    DENY_THRESHOLD = float(os.getenv('DENY_T', '0.70'))
 
     # Validation Confidence Thresholds
     MIN_VALIDATION_CONFIDENCE = 0.70
@@ -416,38 +418,21 @@ class ProposedDecisionEngine:
         elif context_mismatches == 0 and confidence > 0.8:
             risk_score *= 0.9  # Reward for consistent, high-quality signals
 
-        # Smart decision thresholds based on validation quality
-        if risk_score >= self.config.DENY_THRESHOLD:
+        # Strict policy: allow < ALLOW_T, step_up in [ALLOW_T, DENY_T), deny >= DENY_T
+        allow_t = self.config.LOW_RISK_THRESHOLD
+        deny_t = self.config.DENY_THRESHOLD
+        if risk_score >= deny_t:
             decision = 'deny'
             enforcement = 'DENY'
-        elif risk_score >= self.config.MEDIUM_RISK_THRESHOLD:
-            # Validation-informed step-up decisions
-            if confidence >= self.config.HIGH_VALIDATION_CONFIDENCE:
-                # High confidence reduces unnecessary step-ups
-                stepup_probability = 0.15 + (risk_score - self.config.MEDIUM_RISK_THRESHOLD) * 0.4
-            elif confidence >= self.config.MIN_VALIDATION_CONFIDENCE:
-                # Moderate confidence
-                stepup_probability = 0.25 + (risk_score - self.config.MEDIUM_RISK_THRESHOLD) * 0.5
-            else:
-                # Low confidence increases caution
-                stepup_probability = 0.40
-
-            if random.random() <= stepup_probability:
-                decision = 'step_up'
-                enforcement = 'MFA_REQUIRED'
-                requires_stepup = True
-        elif risk_score >= self.config.LOW_RISK_THRESHOLD:
-            # Validation dramatically reduces false positives for benign traffic
-            if is_benign:
-                # Dynamic FPR based on validation confidence
-                base_fpr = random.uniform(*self.config.FPR_RANGE) / 100
-                confidence_factor = 1.0 - (confidence * 0.7)  # Higher confidence = lower FPR
-                adjusted_fpr = base_fpr * confidence_factor
-
-                if random.random() <= adjusted_fpr:
-                    decision = 'step_up'
-                    enforcement = 'MFA_REQUIRED'
-                    requires_stepup = True
+            requires_stepup = False
+        elif risk_score < allow_t:
+            decision = 'allow'
+            enforcement = 'ALLOW'
+            requires_stepup = False
+        else:
+            decision = 'step_up'
+            enforcement = 'MFA_REQUIRED'
+            requires_stepup = True
 
         # Enhanced threat prediction (93% TPR, 4% FPR)
         predicted_threat_level = self._predict_threat_enhanced(actual_threat_level, risk_score, confidence)
