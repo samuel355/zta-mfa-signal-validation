@@ -7,3 +7,33 @@ python3 setup_framework.py
 docker compose -f compose/docker-compose.yml up -d
 python3 scripts/generate_framework_data.py
 python3 scripts/setup_dashboards.py
+
+
+
+
+running @setup_framework.py  created these indexes: 
+
+Framework Comparison  
+Decision Latency 
+Failed Logins 
+Privacy Metrics 
+STRIDE Alerts 
+Security Metrics 
+User Experience 
+Validation Logs 
+
+All don't have data 
+
+the ones that have data: 
+baseline-decisions
+framework-comparison
+mfa-events
+security-classifications
+siem-alerts
+validated-context
+
+but i want these too to have data in elastic : 
+Decision Latency, Failed Logins 
+Privacy Metrics , Security Metrics 
+User Experience 
+Validation Logs. and the processing time/latency is in 2,000+ so if you can strip two zeros off -50 so it becomes less that 200ms. the application is baseline against mfa

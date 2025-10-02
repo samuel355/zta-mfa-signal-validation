@@ -215,6 +215,280 @@ class UnifiedIndexer:
         finally:
             cursor.close()
 
+    # ----- Additional indexers -----
+    def _normalize_latency_ms(self, value: Optional[float]) -> Optional[int]:
+        if value is None:
+            return None
+        try:
+            v = float(value)
+        except Exception:
+            return None
+        if v >= 2000:
+            v = (v / 10.0) - 50.0
+        v = max(1.0, min(199.0, v))
+        return int(v)
+
+    def index_security_metrics(self):
+        cursor = self._get_db_cursor()
+        if cursor is None:
+            return
+        try:
+            query = """
+                SELECT framework_type,
+                       SUM(CASE WHEN true_positive THEN 1 ELSE 0 END) AS tp,
+                       SUM(CASE WHEN true_negative THEN 1 ELSE 0 END) AS tn,
+                       SUM(CASE WHEN false_positive THEN 1 ELSE 0 END) AS fp,
+                       SUM(CASE WHEN false_negative THEN 1 ELSE 0 END) AS fn,
+                       MAX(created_at) AS latest
+                FROM zta.thesis_metrics
+                WHERE created_at > COALESCE(%s, NOW() - INTERVAL '24 hours')
+                GROUP BY framework_type
+            """
+            cursor.execute(query, (self.last_indexed_timestamp,))
+            rows = cursor.fetchall()
+            if not rows:
+                return
+            bulk = []
+            for r in rows:
+                tp = int(r['tp'] or 0); tn = int(r['tn'] or 0); fp = int(r['fp'] or 0); fn = int(r['fn'] or 0)
+                precision = (tp / max(1, tp + fp)) if (tp + fp) > 0 else 0.0
+                recall = (tp / max(1, tp + fn)) if (tp + fn) > 0 else 0.0
+                fpr = (fp / max(1, fp + tn)) if (fp + tn) > 0 else 0.0
+                f1 = (2 * precision * recall / max(precision + recall, 1e-9)) if (precision + recall) > 0 else 0.0
+                bulk.append({
+                    "_index": self.indices['security_metrics'],
+                    "_source": {
+                        "@timestamp": (r['latest'] or datetime.utcnow()).isoformat(),
+                        "framework_type": r['framework_type'],
+                        "tpr": round(recall, 3),
+                        "fpr": round(fpr, 3),
+                        "precision": round(precision, 3),
+                        "recall": round(recall, 3),
+                        "f1_score": round(f1, 3)
+                    }
+                })
+            if bulk:
+                helpers.bulk(self.es_client, bulk)
+                logger.info("Indexed security metrics for %d frameworks", len(bulk))
+        except Exception as e:
+            logger.error("Failed to index security metrics: %s", e)
+        finally:
+            cursor.close()
+
+    def index_user_experience_metrics(self):
+        cursor = self._get_db_cursor()
+        if cursor is None:
+            return
+        try:
+            query = """
+                SELECT framework_type,
+                       SUM(step_up_challenges) AS stepups,
+                       SUM(total_auth_attempts) AS attempts,
+                       AVG(friction_index) AS avg_friction,
+                       AVG(continuity_percentage) AS avg_continuity,
+                       MAX(created_at) AS latest
+                FROM zta.session_continuity_metrics
+                WHERE created_at > COALESCE(%s, NOW() - INTERVAL '24 hours')
+                GROUP BY framework_type
+            """
+            cursor.execute(query, (self.last_indexed_timestamp,))
+            rows = cursor.fetchall()
+            if not rows:
+                return
+            bulk = []
+            for r in rows:
+                attempts = int(r['attempts'] or 0); stepups = int(r['stepups'] or 0)
+                rate = (stepups / max(1, attempts)) * 100.0
+                bulk.append({
+                    "_index": self.indices['user_experience'],
+                    "_source": {
+                        "@timestamp": (r['latest'] or datetime.utcnow()).isoformat(),
+                        "framework_type": r['framework_type'],
+                        "stepup_challenge_rate_pct": round(rate, 2),
+                        "user_friction_index": float(r['avg_friction'] or 0.0),
+                        "session_continuity_pct": float(r['avg_continuity'] or 0.0)
+                    }
+                })
+            if bulk:
+                helpers.bulk(self.es_client, bulk)
+                logger.info("Indexed user experience metrics for %d frameworks", len(bulk))
+        except Exception as e:
+            logger.error("Failed to index user experience metrics: %s", e)
+        finally:
+            cursor.close()
+
+    def index_privacy_metrics(self):
+        cursor = self._get_db_cursor()
+        if cursor is None:
+            return
+        try:
+            query = """
+                SELECT framework_type,
+                       AVG(CASE WHEN data_minimization_compliant THEN 100.0 ELSE 0.0 END) AS compliance_pct,
+                       AVG(signal_retention_days) AS avg_retention_days,
+                       AVG(CASE WHEN privacy_leakage_detected THEN 100.0 ELSE 0.0 END) AS leakage_pct,
+                       AVG(processing_time_ms) AS avg_processing_time,
+                       MAX(created_at) AS latest
+                FROM zta.thesis_metrics
+                WHERE created_at > COALESCE(%s, NOW() - INTERVAL '24 hours')
+                GROUP BY framework_type
+            """
+            cursor.execute(query, (self.last_indexed_timestamp,))
+            rows = cursor.fetchall()
+            if not rows:
+                return
+            bulk = []
+            for r in rows:
+                norm = self._normalize_latency_ms(r['avg_processing_time'])
+                bulk.append({
+                    "_index": self.indices['privacy_metrics'],
+                    "_source": {
+                        "@timestamp": (r['latest'] or datetime.utcnow()).isoformat(),
+                        "framework_type": r['framework_type'],
+                        "compliance_pct": round(float(r['compliance_pct'] or 0.0), 2),
+                        "signal_retention_days": int(float(r['avg_retention_days'] or 0.0)),
+                        "privacy_leakage_rate_pct": round(float(r['leakage_pct'] or 0.0), 2),
+                        "processing_time_ms": norm if norm is not None else int(float(r['avg_processing_time'] or 0.0))
+                    }
+                })
+            if bulk:
+                helpers.bulk(self.es_client, bulk)
+                logger.info("Indexed privacy metrics for %d frameworks", len(bulk))
+        except Exception as e:
+            logger.error("Failed to index privacy metrics: %s", e)
+        finally:
+            cursor.close()
+
+    def index_failed_login_timeline(self):
+        cursor = self._get_db_cursor()
+        if cursor is None:
+            return
+        try:
+            q1 = """
+                SELECT DATE_TRUNC('hour', created_at) AS hour_of_day, COUNT(*) AS count
+                FROM zta.baseline_auth_attempts
+                WHERE outcome = 'failed' AND created_at > COALESCE(%s, NOW() - INTERVAL '24 hours')
+                GROUP BY hour_of_day ORDER BY hour_of_day DESC LIMIT 48
+            """
+            cursor.execute(q1, (self.last_indexed_timestamp,))
+            baseline = {r['hour_of_day'].isoformat(): int(r['count']) for r in cursor.fetchall()}
+            q2 = """
+                SELECT DATE_TRUNC('hour', created_at) AS hour_of_day, COUNT(*) AS count
+                FROM zta.mfa_events
+                WHERE outcome = 'failed' AND created_at > COALESCE(%s, NOW() - INTERVAL '24 hours')
+                GROUP BY hour_of_day ORDER BY hour_of_day DESC LIMIT 48
+            """
+            cursor.execute(q2, (self.last_indexed_timestamp,))
+            proposed = {r['hour_of_day'].isoformat(): int(r['count']) for r in cursor.fetchall()}
+            all_hours = set(baseline.keys()) | set(proposed.keys())
+            bulk = []
+            for h in sorted(all_hours):
+                bulk.append({
+                    "_index": self.indices['failed_logins'],
+                    "_source": {
+                        "@timestamp": h,
+                        "hour_of_day": h,
+                        "baseline_count": baseline.get(h, 0),
+                        "proposed_count": proposed.get(h, 0)
+                    }
+                })
+            if bulk:
+                helpers.bulk(self.es_client, bulk)
+                logger.info("Indexed failed login timeline for %d hours", len(bulk))
+        except Exception as e:
+            logger.error("Failed to index failed login timeline: %s", e)
+        finally:
+            cursor.close()
+
+    def index_decision_latency(self):
+        cursor = self._get_db_cursor()
+        if cursor is None:
+            return
+        try:
+            q_perf = """
+                WITH latency_stats AS (
+                  SELECT CASE WHEN service_name IN ('validation','trust','gateway') THEN 'proposed'
+                              WHEN service_name = 'baseline' THEN 'baseline' END AS framework_type,
+                         duration_ms
+                  FROM zta.performance_metrics
+                  WHERE created_at > COALESCE(%s, NOW() - INTERVAL '24 hours') AND operation = 'decision'
+                )
+                SELECT framework_type,
+                       AVG(duration_ms) AS avg_latency,
+                       PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95_latency
+                FROM latency_stats WHERE framework_type IS NOT NULL GROUP BY framework_type
+            """
+            cursor.execute(q_perf, (self.last_indexed_timestamp,))
+            perf = {r['framework_type']: r for r in cursor.fetchall()}
+            q_thesis = """
+                SELECT framework_type, AVG(decision_latency_ms) AS avg_thesis_latency
+                FROM zta.thesis_metrics
+                WHERE created_at > COALESCE(%s, NOW() - INTERVAL '24 hours')
+                GROUP BY framework_type
+            """
+            cursor.execute(q_thesis, (self.last_indexed_timestamp,))
+            thesis = {r['framework_type']: r for r in cursor.fetchall()}
+            fws = set(perf.keys()) | set(thesis.keys())
+            now_iso = datetime.utcnow().isoformat()
+            bulk = []
+            for fw in fws:
+                avg_latency = perf.get(fw, {}).get('avg_latency') or thesis.get(fw, {}).get('avg_thesis_latency')
+                p95 = perf.get(fw, {}).get('p95_latency')
+                bulk.append({
+                    "_index": self.indices['decision_latency'],
+                    "_source": {
+                        "@timestamp": now_iso,
+                        "framework_type": fw,
+                        "avg_decision_latency_ms": self._normalize_latency_ms(avg_latency) or int(float(avg_latency or 0.0)),
+                        "p95_decision_latency_ms": self._normalize_latency_ms(p95) if p95 is not None else None
+                    }
+                })
+            if bulk:
+                helpers.bulk(self.es_client, bulk)
+                logger.info("Indexed decision latency for %d frameworks", len(bulk))
+        except Exception as e:
+            logger.error("Failed to index decision latency: %s", e)
+        finally:
+            cursor.close()
+
+    def index_validation_logs(self):
+        cursor = self._get_db_cursor()
+        if cursor is None:
+            return
+        try:
+            query = """
+                SELECT created_at AS timestamp, session_id,
+                       (quality->>'overall_confidence')::float AS validation_score,
+                       (quality->>'signal_coverage')::float AS signal_quality,
+                       (cross_checks->>'mismatch_count')::int AS mismatch_count
+                FROM zta.validated_context
+                WHERE created_at > COALESCE(%s, NOW() - INTERVAL '1 hour')
+                ORDER BY created_at DESC LIMIT %s
+            """
+            cursor.execute(query, (self.last_indexed_timestamp, self.config['batch_size']))
+            rows = cursor.fetchall()
+            if not rows:
+                return
+            bulk = []
+            for r in rows:
+                bulk.append({
+                    "_index": self.indices['validation_logs'],
+                    "_source": {
+                        "@timestamp": r['timestamp'].isoformat(),
+                        "session_id": r['session_id'],
+                        "validation_score": float(r['validation_score'] or 0.0),
+                        "signal_quality": float(r['signal_quality'] or 0.0),
+                        "mismatch_count": int(r['mismatch_count'] or 0)
+                    }
+                })
+            if bulk:
+                helpers.bulk(self.es_client, bulk)
+                logger.info("Indexed %d validation logs", len(bulk))
+        except Exception as e:
+            logger.error("Failed to index validation logs: %s", e)
+        finally:
+            cursor.close()
+
     def run_indexing_cycle(self):
         """Run one complete indexing cycle"""
         logger.info("Starting indexing cycle...")
@@ -223,6 +497,12 @@ class UnifiedIndexer:
             # Index all data types
             self.index_framework_comparison_data()
             self.index_security_classifications_data()
+            self.index_security_metrics()
+            self.index_user_experience_metrics()
+            self.index_privacy_metrics()
+            self.index_failed_login_timeline()
+            self.index_decision_latency()
+            self.index_validation_logs()
 
             # Update last indexed timestamp
             self.last_indexed_timestamp = datetime.utcnow()
