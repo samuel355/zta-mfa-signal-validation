@@ -37,7 +37,7 @@ def get_engine()->Optional[Engine]:
     if "sslmode=" not in dsn:
         dsn += ("&" if "?" in dsn else "?") + "sslmode=require"
     try:
-        _engine=create_engine(dsn, pool_pre_ping=True, future=True)
+        _engine=create_engine(dsn, pool_pre_ping=True, future=True, execution_options={"prepared_statement_cache_size": 0})
         with _engine.connect() as c: c.execute(text("select 1"))
         print(f"[DB] ok {_mask_dsn(dsn)}")
     except Exception as e:
