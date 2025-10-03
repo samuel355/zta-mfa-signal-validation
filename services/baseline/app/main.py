@@ -6,7 +6,7 @@ from datetime import datetime
 import pyotp
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
-from baseline_engine import process_baseline_request, get_baseline_thesis_metrics, reset_baseline_metrics
+from .baseline_engine import process_baseline_request, get_baseline_thesis_metrics, reset_baseline_metrics
 
 api = FastAPI(title="Baseline MFA Service", version="1.0")
 

@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
-from decision_engine import process_proposed_request, get_proposed_thesis_metrics, reset_proposed_metrics, compare_frameworks
+from .decision_engine import process_proposed_request, get_proposed_thesis_metrics, reset_proposed_metrics, compare_frameworks
 
 api = FastAPI(title="Trust Service", version="0.5")
 

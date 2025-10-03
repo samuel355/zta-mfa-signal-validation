@@ -5,7 +5,7 @@ import os, json
 import httpx
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
-from enrichment import enrich_all, DATA_STATUS
+from .enrichment import enrich_all, DATA_STATUS
 
 api = FastAPI(title="Validation Service", version="0.4")
 
@@ -67,9 +67,9 @@ def compute_reasons(signals: Dict[str, Any], enr: Dict[str, Any]) -> list[str]:
         if "BOT" in L or "INFILTRATION" in L:
             R.append("DOWNLOAD_EXFIL")           # Information Disclosure
         if "HEARTBLEED" in L:
-            R.append("TLS_ANOMALY")      
+            R.append("TLS_ANOMALY")
         if "Heartbleed" in L:
-            R.append("TLS_ANOMALY") 
+            R.append("TLS_ANOMALY")
         if "Infiltration" in L:
             R.append("INFORMATION_DISCLOSURE")                # Tampering
 
@@ -164,7 +164,7 @@ def validate(payload: SignalPayload):
             persistence={"ok": True}
         except Exception as ex:
             persistence={"ok": False, "error": str(ex)}
-        
+
         # --- Send validated context to Elasticsearch ---
         try:
             from datetime import datetime
@@ -173,7 +173,7 @@ def validate(payload: SignalPayload):
             es_pass = os.getenv("ES_PASS", "")
             es_api_key = os.getenv("ES_API_KEY", "")
             es_index = os.getenv("ES_VALIDATED_INDEX", "validated-context")
-    
+
             doc = {
                 "@timestamp": datetime.utcnow().isoformat(),
                 "session_id": v["vector"].get("session_id"),
@@ -184,20 +184,20 @@ def validate(payload: SignalPayload):
                 "enrichment": e,
                 "reasons": reasons,
             }
-    
+
             headers = {"content-type": "application/json"}
             auth = None
             if es_api_key:
                 headers["Authorization"] = f"ApiKey {es_api_key}"
             elif es_user and es_pass:
                 auth = httpx.BasicAuth(es_user, es_pass)
-    
+
             with httpx.Client(timeout=5, headers=headers, auth=auth) as c:
                 r = c.post(f"{es_host}/{es_index}/_doc", json=doc)
                 r.raise_for_status()
                 print(f"[VALIDATION] Indexed validated context into {es_index}")
         except Exception as ex:
             print(f"[VALIDATION] Failed to index validated context: {ex}")
-                
-      
+
+
     return {"validated": v, "quality": q, "cross": x, "enrichment": e, "persistence": persistence}
