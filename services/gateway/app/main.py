@@ -235,7 +235,7 @@ def decision(payload: ValidateAndDecide):
     # which processes MFA events to avoid double insertion
 
     # ---------------- Elasticsearch index ----------------
-    if decision.lower() in ("step_up", "deny"):
+    if decision.lower() in ("step_up", "deny", "allow"):
         # Map reasons to STRIDE values for Elasticsearch too
         STRIDE_MAP = {
             "SPOOFING": "Spoofing",
@@ -244,12 +244,12 @@ def decision(payload: ValidateAndDecide):
             "POSTURE": "Tampering",
             "POSTURE_OUTDATED": "Tampering",
             "REPUDIATION": "Repudiation",
-            "DOWNLOAD": "InformationDisclosure",
-            "EXFIL": "InformationDisclosure",
-            "DOS": "DoS",
-            "DDOS": "DoS",
-            "POLICY": "EoP",
-            "EOP": "EoP",
+            "DOWNLOAD": "Information Disclosure",
+            "EXFIL": "Information Disclosure",
+            "DOS": "Denial of Service",
+            "DDOS": "Denial of Service",
+            "POLICY": "Escalation of Privilege",
+            "EOP": "Escalation of Privilege",
         }
 
         stride_value = None
