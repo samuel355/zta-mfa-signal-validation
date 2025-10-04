@@ -45,11 +45,11 @@ class BaselineThesisConfig:
     AVG_LATENCY_RANGE = (100, 140)
     PROCESSING_TIME_RANGE = (80, 120)
 
-    # Risk Thresholds (More Conservative)
-    LOW_RISK_THRESHOLD = 0.20
-    MEDIUM_RISK_THRESHOLD = 0.45
-    HIGH_RISK_THRESHOLD = 0.75
-    DENY_THRESHOLD = 0.85
+    # Risk Thresholds (More Balanced - Still Conservative but Better Detection)
+    LOW_RISK_THRESHOLD = 0.15  # Lower threshold for better detection
+    MEDIUM_RISK_THRESHOLD = 0.35  # More sensitive to threats
+    HIGH_RISK_THRESHOLD = 0.60  # Earlier step-up
+    DENY_THRESHOLD = 0.75  # Earlier denial
 
     # Signal Weights (No Validation/Enrichment)
     WEIGHTS = {

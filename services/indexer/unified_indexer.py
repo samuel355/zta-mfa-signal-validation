@@ -66,7 +66,7 @@ class UnifiedIndexer:
         """Create Elasticsearch client with proper authentication"""
         es_config = {
             'hosts': [self.config['es_host']],
-            'timeout': 30,
+            'request_timeout': 30,
             'retry_on_timeout': True,
             'max_retries': 3
         }
@@ -78,6 +78,39 @@ class UnifiedIndexer:
             es_config['basic_auth'] = (self.config['es_user'], self.config['es_pass'])
 
         return Elasticsearch(**es_config)
+
+    def _safe_normalize_factors(self, factors):
+        """Safely normalize factors field to always be a dict for Elasticsearch"""
+        try:
+            if factors is None:
+                return {}
+            elif isinstance(factors, dict):
+                return factors
+            elif isinstance(factors, list):
+                # Convert list to dict format for proposed framework
+                return {
+                    'threat_indicators': factors if factors else [],
+                    'suspicious_ip': False,
+                    'unknown_device': False,
+                    'failed_attempts': 0,
+                    'location_anomaly': False,
+                    'behavioral_anomaly': False,
+                    'tls_anomaly': False
+                }
+            else:
+                # Handle any other type (string, etc.)
+                return {
+                    'threat_indicators': [],
+                    'suspicious_ip': False,
+                    'unknown_device': False,
+                    'failed_attempts': 0,
+                    'location_anomaly': False,
+                    'behavioral_anomaly': False,
+                    'tls_anomaly': False
+                }
+        except Exception as e:
+            logger.warning(f"Error normalizing factors {factors}: {e}")
+            return {}
 
     def _connect_db(self):
         """Connect to database using psycopg2"""
@@ -109,6 +142,39 @@ class UnifiedIndexer:
             return self.db_conn.cursor()
         return None
 
+    def _inline_normalize_factors(self, factors):
+        """Inline normalize factors field to always be a dict for Elasticsearch"""
+        try:
+            if factors is None:
+                return {}
+            elif isinstance(factors, dict):
+                return factors
+            elif isinstance(factors, list):
+                # Convert list to dict format for proposed framework
+                return {
+                    'threat_indicators': factors if factors else [],
+                    'suspicious_ip': False,
+                    'unknown_device': False,
+                    'failed_attempts': 0,
+                    'location_anomaly': False,
+                    'behavioral_anomaly': False,
+                    'tls_anomaly': False
+                }
+            else:
+                # Handle any other type (string, etc.)
+                return {
+                    'threat_indicators': [],
+                    'suspicious_ip': False,
+                    'unknown_device': False,
+                    'failed_attempts': 0,
+                    'location_anomaly': False,
+                    'behavioral_anomaly': False,
+                    'tls_anomaly': False
+                }
+        except Exception as e:
+            logger.warning(f"Error normalizing factors {factors}: {e}")
+            return {}
+
     def index_framework_comparison_data(self):
         """Index framework comparison data from database"""
         cursor = self._get_db_cursor()
@@ -128,12 +194,11 @@ class UnifiedIndexer:
                     fc.factors,
                     fc.comparison_id
                 FROM zta.framework_comparison fc
-                WHERE fc.created_at > COALESCE(%s, NOW() - INTERVAL '1 hour')
                 ORDER BY fc.created_at DESC
                 LIMIT %s
             """
 
-            cursor.execute(query, (self.last_indexed_timestamp, self.config['batch_size']))
+            cursor.execute(query, (self.config['batch_size'],))
             records = cursor.fetchall()
 
             if records:
@@ -147,7 +212,7 @@ class UnifiedIndexer:
                         "risk_score": float(record['risk_score']),
                         "enforcement": record['enforcement'],
                         "processing_time_ms": record['processing_time_ms'],
-                        "factors": record['factors'] if record['factors'] else [],
+                        "factors": (lambda f: {} if f is None else f if isinstance(f, dict) else {"threat_indicators": f if isinstance(f, list) else [], "suspicious_ip": False, "unknown_device": False, "failed_attempts": 0, "location_anomaly": False, "behavioral_anomaly": False, "tls_anomaly": False} if isinstance(f, list) else {})(record['factors']),
                         "comparison_id": record['comparison_id']
                     }
                     bulk_data.append({
@@ -156,8 +221,17 @@ class UnifiedIndexer:
                     })
 
                 if bulk_data:
-                    helpers.bulk(self.es_client, bulk_data)
-                    logger.info(f"Indexed {len(bulk_data)} framework comparison records")
+                    try:
+                        result = helpers.bulk(self.es_client, bulk_data)
+                        if result[0] > 0:
+                            logger.info(f"Successfully indexed {result[0]} framework comparison records")
+                        if result[1] > 0:
+                            logger.warning(f"Failed to index {result[1]} framework comparison records")
+                    except Exception as bulk_error:
+                        logger.error(f"Bulk indexing failed: {bulk_error}")
+                        # Log first few failed documents for debugging
+                        for i, doc in enumerate(bulk_data[:3]):
+                            logger.error(f"Failed document {i}: {doc['_source']}")
 
         except Exception as e:
             logger.error(f"Failed to index framework comparison data: {e}")

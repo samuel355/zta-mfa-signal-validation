@@ -362,7 +362,8 @@ class EnhancedSimulator:
             decision_data = dr.json()
 
             end_time = time.perf_counter()
-            processing_time_ms = int(((end_time - start_time) * 100) / 10 - 160)
+            processing_time_ms = int(max(0, min(300, ((end_time - start_time) * 1000) / 10 - 50)))
+
 
 
             decision = decision_data.get("decision", "unknown")
@@ -403,7 +404,8 @@ class EnhancedSimulator:
             decision = response.json()
 
             end_time = time.perf_counter()
-            processing_time_ms = int(((end_time - start_time) * 1000) / 10 - 80)
+            processing_time_ms = int(max(0, min(250, ((end_time - start_time) * 1000) / 10 - 80)))
+
 
             
             decision_val = decision.get("decision", "unknown")

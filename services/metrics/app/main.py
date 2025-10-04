@@ -8,7 +8,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 import logging
-from app.framework_metrics import ThesisMetricsCalculator
+from .framework_metrics import ThesisMetricsCalculator
 
 api = FastAPI(title="Metrics Collection Service", version="1.0")
 
