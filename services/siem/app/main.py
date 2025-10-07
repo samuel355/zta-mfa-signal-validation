@@ -37,7 +37,9 @@ def get_engine()->Optional[Engine]:
     if "sslmode=" not in dsn:
         dsn += ("&" if "?" in dsn else "?") + "sslmode=require"
     try:
-        _engine=create_engine(dsn, pool_pre_ping=True, future=True, execution_options={"prepared_statement_cache_size": 0})
+        _engine=create_engine(dsn, pool_pre_ping=True, future=True, 
+                            pool_size=5, max_overflow=10, pool_recycle=3600,
+                            execution_options={"prepared_statement_cache_size": 0})
         with _engine.connect() as c: c.execute(text("select 1"))
         print(f"[DB] ok {_mask_dsn(dsn)}")
     except Exception as e:
@@ -76,7 +78,8 @@ async def _worker():
         print("[siem] no DB; worker disabled"); return
     while True:
         try:
-            with eng.begin() as conn:
+            # Use a fresh connection for each iteration to avoid prepared statement issues
+            with eng.connect() as conn:
                 rows = conn.execute(text("""
                     select session_id, detail::jsonb as d, extract(epoch from created_at) as ts
                     from zta.mfa_events
@@ -95,16 +98,17 @@ async def _worker():
                     sev = severity_from_risk(risk, decision, enforcement)
 
                     # Check if SIEM alert already exists for this session_id and source
-                    existing = conn.execute(text("""
+                    existing = conn.execute(text(f"""
                         select count(*) as cnt from zta.siem_alerts
-                        where session_id = :sid and source like 'es:mfa-events%'
-                    """), {"sid": r["session_id"]}).scalar()
+                        where session_id = '{r["session_id"]}' and source like 'es:mfa-events%'
+                    """)).scalar()
 
                     if existing == 0:
-                        conn.execute(text("""
+                        conn.execute(text(f"""
                             insert into zta.siem_alerts (session_id, stride, severity, source, raw)
-                            values (:sid, :stride, :sev, 'es:mfa-events*', cast(:raw as jsonb))
-                        """), {"sid": r["session_id"], "stride": stride, "sev": sev, "raw": json.dumps(d)})
+                            values ('{r["session_id"]}', '{stride}', '{sev}', 'es:mfa-events*', '{json.dumps(d).replace("'", "''")}'::jsonb)
+                        """))
+                        conn.commit()
                         print(f"[siem] Created new alert for session {r['session_id']}")
                     else:
                         print(f"[siem] Skipping duplicate alert for session {r['session_id']}")
