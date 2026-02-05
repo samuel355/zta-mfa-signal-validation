@@ -1,0 +1,23 @@
+How to Use This Data:
+
+Option A: Create Plots in Excel
+
+Copy each CSV above into separate Excel sheets
+Create line charts for 1, 2, 3, 6
+Create scatter/parallel coordinates for 4
+Create ROC curve for 5
+Option B: Use Python (Quick Script)
+
+python
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Load data and create plots
+# Example for Plot 2:
+data = pd.read_csv('geographic_data.csv')
+plt.plot(data['d_km'], data['F1_Score'], label='F1-Score', color='blue')
+plt.axvline(x=1000, color='red', linestyle='--', label='Optimal (1000 km)')
+plt.xlabel('Geographic Threshold d₀ (km)')
+plt.ylabel('F1-Score')
+plt.legend()
+plt.savefig('fig2_geographic_threshold.png', dpi=300)
