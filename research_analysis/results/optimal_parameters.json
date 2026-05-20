@@ -1,0 +1,21 @@
+{
+  "T_gps": 60.0,
+  "T_ip": 60.0,
+  "T_device": 3600.0,
+  "T_wifi": 60.0,
+  "T_tls": 60.0,
+  "d0": 100.0,
+  "penalty_vpn": 0.9,
+  "penalty_tor": 0.7000000000000001,
+  "penalty_malicious": 0.1,
+  "penalty_unknown": 0.2,
+  "W_gps": 0.07556160851679446,
+  "W_ip": 0.021817924410442918,
+  "W_device": 0.468476412797136,
+  "W_tls": 0.054040621417350665,
+  "W_wifi": 0.3801034328582761,
+  "threshold_stepup": 0.47305078277297724,
+  "threshold_deny": 0.5724512722609674,
+  "siem_weight_high": 0.4,
+  "siem_weight_medium": 0.3
+}

@@ -1,0 +1,56 @@
+{
+  "freshness_constants": {
+    "gps": {
+      "optimal_value_seconds": 60.0,
+      "optimal_value_hours": 0.016666666666666666,
+      "optimal_f1": 0.9041095890410958
+    },
+    "ip": {
+      "optimal_value_seconds": 60.0,
+      "optimal_value_hours": 0.016666666666666666,
+      "optimal_f1": 0.8919667590027701
+    },
+    "device": {
+      "optimal_value_seconds": 3600.0,
+      "optimal_value_hours": 1.0,
+      "optimal_f1": 0.8200589970501475
+    },
+    "wifi": {
+      "optimal_value_seconds": 60.0,
+      "optimal_value_hours": 0.016666666666666666,
+      "optimal_f1": 0.6710963455149501
+    },
+    "tls": {
+      "optimal_value_seconds": 60.0,
+      "optimal_value_hours": 0.016666666666666666,
+      "optimal_f1": 0.9333333333333333
+    }
+  },
+  "geographic_threshold": {
+    "optimal_value_km": 100.0,
+    "optimal_f1": 0.7096774193548387
+  },
+  "threat_penalties": {
+    "optimal_vpn": 0.9,
+    "optimal_tor": 0.7000000000000001,
+    "optimal_f1": 0.7012987012987013
+  },
+  "signal_weights": {
+    "W_gps": 0.07556160851679446,
+    "W_ip": 0.021817924410442918,
+    "W_device": 0.468476412797136,
+    "W_wifi": 0.3801034328582761,
+    "W_tls": 0.054040621417350665,
+    "optimal_f1": 0.9389920424403183
+  },
+  "risk_thresholds": {
+    "optimal_stepup": 0.47305078277297724,
+    "optimal_deny": 0.5724512722609674,
+    "roc_auc": 0.9998187500000001
+  },
+  "siem_weights": {
+    "optimal_high": 0.4,
+    "optimal_medium": 0.3,
+    "optimal_f1": 0.6970684039087948
+  }
+}
