@@ -540,8 +540,7 @@ ax1.plot(fpr, tpr, "b-", linewidth=3.5, alpha=0.8, label=f"ROC Curve (AUC = {auc
 # Mark threshold points
 ax1.plot(
     fpr[idx_25],
-    tpr[idx_25],
-    "o",
+    tpr[idx_25],    "o",
     markersize=16,
     color="red",
     markeredgecolor="black",
