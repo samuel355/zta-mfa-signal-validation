@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS zta.mfa_events (
 CREATE TABLE IF NOT EXISTS zta.network_latency_simulation (
   id integer NOT NULL DEFAULT nextval('zta.network_latency_simulation_id_seq'::regclass),
   network_condition character varying NOT NULL,
-  framework_type character varying NOT NULL CHECK (framework_type::text = ANY (ARRAY['baseline'::character varying, 'proposed'::character varying]::text[])),
+  framework_type character varying NOT NULL CHECK (framework_type IN ('proposed','ablation','ahmadi2025','jimmy2025','phani2025')),
   decision_latency_ms integer NOT NULL,
   throughput_impact_pct numeric DEFAULT 0,
   created_at timestamp with time zone DEFAULT now(),
@@ -162,12 +162,26 @@ CREATE TABLE IF NOT EXISTS zta.performance_metrics (
   operation character varying NOT NULL,
   start_time timestamp with time zone NOT NULL,
   end_time timestamp with time zone NOT NULL,
-  duration_ms integer DEFAULT (EXTRACT(epoch FROM (end_time - start_time)) * (1000)::numeric),
+  duration_ms integer,
   status character varying DEFAULT 'success'::character varying,
   error_message text,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT performance_metrics_pkey PRIMARY KEY (id)
 );
+
+-- Trigger: auto-compute duration_ms from end_time - start_time
+CREATE OR REPLACE FUNCTION zta.set_duration_ms()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.duration_ms := EXTRACT(epoch FROM (NEW.end_time - NEW.start_time)) * 1000;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_set_duration_ms ON zta.performance_metrics;
+CREATE TRIGGER trg_set_duration_ms
+  BEFORE INSERT OR UPDATE ON zta.performance_metrics
+  FOR EACH ROW EXECUTE FUNCTION zta.set_duration_ms();
 
 -- Table: security_classifications
 -- Purpose: Threat prediction accuracy tracking
@@ -190,7 +204,7 @@ CREATE TABLE IF NOT EXISTS zta.security_classifications (
 CREATE TABLE IF NOT EXISTS zta.session_continuity_metrics (
   id integer NOT NULL DEFAULT nextval('zta.session_continuity_metrics_id_seq'::regclass),
   session_id character varying NOT NULL,
-  framework_type character varying NOT NULL CHECK (framework_type::text = ANY (ARRAY['baseline'::character varying, 'proposed'::character varying]::text[])),
+  framework_type character varying NOT NULL CHECK (framework_type IN ('proposed','ablation','ahmadi2025','jimmy2025','phani2025')),
   total_auth_attempts integer DEFAULT 1,
   successful_continuations integer DEFAULT 0,
   step_up_challenges integer DEFAULT 0,
@@ -205,18 +219,6 @@ CREATE TABLE IF NOT EXISTS zta.session_continuity_metrics (
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT session_continuity_metrics_pkey PRIMARY KEY (id)
 );
-
--- Create indexes for better query performance
-CREATE INDEX IF NOT EXISTS idx_thesis_metrics_session_framework ON zta.thesis_metrics(session_id, framework_type);
-CREATE INDEX IF NOT EXISTS idx_thesis_metrics_created_at ON zta.thesis_metrics(created_at);
-CREATE INDEX IF NOT EXISTS idx_framework_comparison_session ON zta.framework_comparison(session_id);
-CREATE INDEX IF NOT EXISTS idx_framework_comparison_created_at ON zta.framework_comparison(created_at);
-CREATE INDEX IF NOT EXISTS idx_siem_alerts_session ON zta.siem_alerts(session_id);
-CREATE INDEX IF NOT EXISTS idx_siem_alerts_stride ON zta.siem_alerts(stride);
-CREATE INDEX IF NOT EXISTS idx_trust_decisions_session ON zta.trust_decisions(session_id);
-CREATE INDEX IF NOT EXISTS idx_validated_context_session ON zta.validated_context(session_id);
-CREATE INDEX IF NOT EXISTS idx_mfa_events_session ON zta.mfa_events(session_id);
-CREATE INDEX IF NOT EXISTS idx_baseline_decisions_session ON zta.baseline_decisions(session_id);
 
 -- Grant permissions (adjust as needed for your setup)
 GRANT ALL ON SCHEMA zta TO postgres;
@@ -254,7 +256,7 @@ CREATE TABLE IF NOT EXISTS zta.stride_threat_simulation (
 CREATE TABLE IF NOT EXISTS zta.thesis_metrics (
   id integer NOT NULL DEFAULT nextval('zta.thesis_metrics_id_seq'::regclass),
   session_id character varying NOT NULL,
-  framework_type character varying NOT NULL CHECK (framework_type::text = ANY (ARRAY['baseline'::character varying, 'proposed'::character varying]::text[])),
+  framework_type character varying NOT NULL CHECK (framework_type IN ('proposed','ablation','ahmadi2025','jimmy2025','phani2025')),
   true_positive boolean DEFAULT false,
   false_positive boolean DEFAULT false,
   true_negative boolean DEFAULT false,
@@ -311,3 +313,15 @@ CREATE TABLE IF NOT EXISTS zta.validated_context (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT validated_context_pkey PRIMARY KEY (id)
 );
+
+-- Create indexes after all tables are defined
+CREATE INDEX IF NOT EXISTS idx_thesis_metrics_session_framework ON zta.thesis_metrics(session_id, framework_type);
+CREATE INDEX IF NOT EXISTS idx_thesis_metrics_created_at ON zta.thesis_metrics(created_at);
+CREATE INDEX IF NOT EXISTS idx_framework_comparison_session ON zta.framework_comparison(session_id);
+CREATE INDEX IF NOT EXISTS idx_framework_comparison_created_at ON zta.framework_comparison(created_at);
+CREATE INDEX IF NOT EXISTS idx_siem_alerts_session ON zta.siem_alerts(session_id);
+CREATE INDEX IF NOT EXISTS idx_siem_alerts_stride ON zta.siem_alerts(stride);
+CREATE INDEX IF NOT EXISTS idx_trust_decisions_session ON zta.trust_decisions(session_id);
+CREATE INDEX IF NOT EXISTS idx_validated_context_session ON zta.validated_context(session_id);
+CREATE INDEX IF NOT EXISTS idx_mfa_events_session ON zta.mfa_events(session_id);
+CREATE INDEX IF NOT EXISTS idx_baseline_decisions_session ON zta.baseline_decisions(session_id);

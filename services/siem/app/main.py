@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from typing import Optional, Dict, Any, List
+from collections import defaultdict
 import os, asyncio, time, json
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
@@ -11,6 +12,13 @@ SEV_HIGH= float(os.getenv("SEV_HIGH","0.75"))
 
 _engine: Optional[Engine] = None
 _last_ts = 0.0
+
+# In-memory alert index, kept current by _worker() as it ingests mfa_events.
+# /aggregate reads this instead of querying the remote DB on the decision-latency
+# critical path — same rationale as backgrounding writes: a synchronous analytics
+# DB round-trip has no place blocking an authentication decision.
+_alert_cache: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+_ALERT_CACHE_MAX_AGE_S = 3600  # prune entries older than this on write
 
 def _mask_dsn(dsn:str)->str:
     try:
@@ -37,26 +45,41 @@ def get_engine()->Optional[Engine]:
     if "sslmode=" not in dsn:
         dsn += ("&" if "?" in dsn else "?") + "sslmode=require"
     try:
-        _engine=create_engine(dsn, pool_pre_ping=True, future=True, 
-                            pool_size=5, max_overflow=10, pool_recycle=3600,
-                            execution_options={"prepared_statement_cache_size": 0})
-        with _engine.connect() as c: c.execute(text("select 1"))
+        _engine=create_engine(dsn, pool_pre_ping=True, future=True,
+                            pool_size=3, max_overflow=3, pool_recycle=3600,
+                            connect_args={"prepare_threshold": None})
+        _warm_pool(_engine, 3)
         print(f"[DB] ok {_mask_dsn(dsn)}")
     except Exception as e:
         print(f"[DB] fail {_mask_dsn(dsn)}: {e}")
         _engine=None
     return _engine
 
+def _warm_pool(engine: Engine, n: int):
+    """Eagerly open N pooled connections at startup — see validation service for rationale."""
+    conns = []
+    try:
+        for _ in range(n):
+            c = engine.connect()
+            c.execute(text("select 1"))
+            conns.append(c)
+    finally:
+        for c in conns:
+            c.close()
+
 # ----- STRIDE mapping from reasons -----
-def stride_from_reasons(reasons: List[str]) -> str:
+def stride_from_reasons(reasons: List[str]) -> Optional[str]:
+    """Maps risk reasons to zta.siem_alerts.stride values. Must match the DB CHECK
+    constraint exactly: Spoofing, Tampering, Repudiation, InformationDisclosure, DoS, EoP.
+    Returns None for benign/no-STRIDE-relevant sessions — these are not alert-worthy."""
     R=set((r or "").upper() for r in reasons)
     if {"GPS_MISMATCH","WIFI_MISMATCH"} & R: return "Spoofing"
     if "TLS_ANOMALY" in R or "POSTURE_OUTDATED" in R: return "Tampering"
-    if "DOS" in R: return "Denial of Service"
-    if "POLICY_ELEVATION" in R: return "Elevation of Privilege"
-    if "DOWNLOAD_EXFIL" in R: return "Information Disclosure"
+    if "DOS" in R: return "DoS"
+    if "POLICY_ELEVATION" in R: return "EoP"
+    if "DOWNLOAD_EXFIL" in R: return "InformationDisclosure"
     if "REPUDIATION" in R: return "Repudiation"
-    return "Benign"
+    return None
 
 def severity_from_risk(risk: float, decision: str, enforcement: str) -> str:
     try:
@@ -89,29 +112,39 @@ async def _worker():
                 """), {"last": _last_ts}).mappings().all()
 
                 for r in rows:
+                    session_id = r["session_id"]
                     d: Dict[str,Any] = r["d"]
                     reasons = d.get("reasons") or []
                     stride = stride_from_reasons(reasons)
+                    _last_ts = float(r["ts"])
+                    if stride is None:
+                        continue  # benign / no STRIDE-relevant reason — not alert-worthy
+
                     risk = d.get("risk", 0.0)
                     decision = d.get("decision","allow")
                     enforcement = d.get("enforcement","ALLOW")
                     sev = severity_from_risk(risk, decision, enforcement)
 
-                    # Check if SIEM alert already exists for this session_id and source
-                    existing = conn.execute(text(f"""
+                    existing = conn.execute(text("""
                         select count(*) as cnt from zta.siem_alerts
-                        where session_id = '{r["session_id"]}' and source like 'es:mfa-events%'
-                    """)).scalar()
+                        where session_id = :sid and source like 'es:mfa-events%'
+                    """), {"sid": session_id}).scalar()
 
                     if existing == 0:
-                        conn.execute(text(f"""
+                        alert_ts = time.time()
+                        conn.execute(text("""
                             insert into zta.siem_alerts (session_id, stride, severity, source, raw)
-                            values ('{r["session_id"]}', '{stride}', '{sev}', 'es:mfa-events*', '{json.dumps(d).replace("'", "''")}'::jsonb)
-                        """))
+                            values (:sid, :stride, :sev, 'es:mfa-events*', CAST(:raw AS jsonb))
+                        """), {"sid": session_id, "stride": stride, "sev": sev, "raw": json.dumps(d)})
                         conn.commit()
-                        print(f"[siem] Created new alert for session {r['session_id']}")
+
+                        _alert_cache[session_id].append({"severity": sev, "ts": alert_ts})
+                        cutoff = alert_ts - _ALERT_CACHE_MAX_AGE_S
+                        _alert_cache[session_id] = [a for a in _alert_cache[session_id] if a["ts"] >= cutoff]
+
+                        print(f"[siem] Created new alert for session {session_id}")
                     else:
-                        print(f"[siem] Skipping duplicate alert for session {r['session_id']}")
+                        print(f"[siem] Skipping duplicate alert for session {session_id}")
 
                     _last_ts = float(r["ts"])
         except Exception as ex:
@@ -127,19 +160,15 @@ def health(): return {"status":"ok"}
 
 @api.get("/aggregate")
 def aggregate(session_id: Optional[str]=None, minutes: int=15):
-    eng=get_engine()
-    if eng is None: return {"counts": {}}
-    with eng.connect() as c:
-        if session_id:
-            rows=c.execute(text("""
-                select severity, count(*) from zta.siem_alerts
-                where session_id=:sid and created_at > now() - (:mins || ' minutes')::interval
-                group by 1
-            """), {"sid":session_id, "mins":minutes}).all()
-        else:
-            rows=c.execute(text("""
-                select severity, count(*) from zta.siem_alerts
-                where created_at > now() - (:mins || ' minutes')::interval
-                group by 1
-            """), {"mins":minutes}).all()
-    return {"counts": {r[0]: int(r[1]) for r in rows}}
+    """Reads the in-memory alert index maintained by _worker() — no DB round-trip,
+    so this stays off the authentication decision-latency critical path."""
+    cutoff = time.time() - (minutes * 60)
+    counts: Dict[str, int] = defaultdict(int)
+
+    sessions = [session_id] if session_id else list(_alert_cache.keys())
+    for sid in sessions:
+        for alert in _alert_cache.get(sid, []):
+            if alert["ts"] >= cutoff:
+                counts[alert["severity"]] += 1
+
+    return {"counts": dict(counts)}

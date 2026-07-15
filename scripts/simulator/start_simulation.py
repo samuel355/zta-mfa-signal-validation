@@ -16,15 +16,18 @@ HEALTH_CHECKS = {
     "trust": "http://trust:8000/health",
     "gateway": "http://gateway:8000/health",
     "siem": "http://siem:8000/health",
-    "baseline": "http://baseline:8000/health",
+    "ablation":    "http://ablation:8000/health",
+    "ahmadi2025":  "http://ahmadi2025:8000/health",
+    "jimmy2025":   "http://jimmy2025:8000/health",
+    "phani2025":   "http://phani2025:8000/health",
     "metrics": "http://metrics:8000/health"
 }
 
 # Configuration
 MAX_WAIT_TIME = 300  # 5 minutes total wait time
 CHECK_INTERVAL = 5   # Check every 5 seconds
-REQUIRED_SERVICES = ["validation", "gateway", "baseline"]  # Minimum required services
-OPTIONAL_SERVICES = ["elasticsearch", "trust", "siem", "metrics"]
+REQUIRED_SERVICES = ["validation", "gateway", "ablation", "ahmadi2025", "phani2025"]
+OPTIONAL_SERVICES = ["elasticsearch", "trust", "siem", "metrics", "jimmy2025"]
 
 async def check_service_health(client: httpx.AsyncClient, name: str, url: str) -> bool:
     """Check if a service is healthy"""

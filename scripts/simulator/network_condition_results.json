@@ -1,0 +1,23 @@
+{
+  "normal": {
+    "label": "Normal (500 Mbps)",
+    "avg_latency_ms": 680.2,
+    "tpr": 0.6099,
+    "fpr": 0.0,
+    "samples": 150
+  },
+  "constrained": {
+    "label": "Constrained (256 kbps, 50 ms latency)",
+    "avg_latency_ms": 807.2,
+    "tpr": 0.6214,
+    "fpr": 0.0,
+    "samples": 150
+  },
+  "degraded": {
+    "label": "Degraded (256 kbps, 100 ms, 5% loss)",
+    "avg_latency_ms": 875.5,
+    "tpr": 0.6224,
+    "fpr": 0.0,
+    "samples": 150
+  }
+}

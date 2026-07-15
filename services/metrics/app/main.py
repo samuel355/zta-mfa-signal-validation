@@ -50,15 +50,28 @@ def get_engine() -> Optional[Engine]:
     if "sslmode=" not in dsn:
         dsn += ("&" if "?" in dsn else "?") + "sslmode=require"
     try:
-        _engine = create_engine(dsn, pool_pre_ping=True, future=True)
-        with _engine.connect() as c:
-            c.execute(text("select 1"))
+        _engine = create_engine(dsn, pool_pre_ping=True, future=True,
+                                 pool_size=3, max_overflow=3,
+                                 connect_args={"prepare_threshold": None})
+        _warm_pool(_engine, 3)
         print(f"[METRICS][DB] Engine created OK for {_mask_dsn(dsn)}")
     except Exception as e:
         print(f"[METRICS][DB] Failed to create engine "
               f"for {_mask_dsn(dsn)}: {e}")
         _engine = None
     return _engine
+
+def _warm_pool(engine: Engine, n: int):
+    """Eagerly open N pooled connections at startup — see validation service for rationale."""
+    conns = []
+    try:
+        for _ in range(n):
+            c = engine.connect()
+            c.execute(text("select 1"))
+            conns.append(c)
+    finally:
+        for c in conns:
+            c.close()
 
 def calculate_security_metrics(hours: int = 24) -> Dict[str, Any]:
     """Calculate security-related metrics"""
@@ -197,7 +210,7 @@ def calculate_detection_metrics(hours: int = 24) -> Dict[str, Any]:
 
     try:
         with eng.connect() as conn:
-            # Threat detection by label (from CICIDS dataset)
+            # Threat detection by label (from CIC-IDS2018 dataset)
             threat_detection = conn.execute(text(f"""
                 SELECT
                     UPPER(signals::jsonb->'vector'->>'label') as original_label,
@@ -464,6 +477,11 @@ def _get_mock_decision_metrics() -> Dict[str, Any]:
         ]
     })
 
+@api.on_event("startup")
+def _startup():
+    """Warm the DB pool before accepting traffic — see validation service for rationale."""
+    get_engine()
+
 @api.get("/health")
 def health():
     return {"status": "ok", "service": "metrics-collection"}
@@ -546,22 +564,6 @@ def get_comparison_metrics(
                 GROUP BY framework_type
             """)).mappings().all()
 
-            # Get baseline-specific metrics
-            baseline_auth_stats = conn.execute(text(f"""
-                SELECT outcome, COUNT(*) as count
-                FROM zta.baseline_auth_attempts
-                WHERE created_at > NOW() - INTERVAL '{hours} HOURS'
-                GROUP BY outcome
-            """)).mappings().all()
-
-            # Get baseline trusted devices count
-            trusted_devices_count = conn.execute(text("""
-                SELECT COUNT(*) as count
-                FROM zta.baseline_trusted_devices
-                WHERE trust_status = 'trusted'
-                AND last_seen > NOW() - INTERVAL '7 DAYS'
-            """)).scalar() or 0
-
             # Get security classifications
             security_stats = conn.execute(text(f"""
                 SELECT
@@ -606,19 +608,9 @@ def get_comparison_metrics(
                         "false_negative_rate": ((stat["false_negatives"] or 0) / max(total_class, 1)) * 100
                     }
 
-            # Add baseline-specific data
-            if "baseline" in frameworks:
-                baseline_auth_outcomes = {}
-                for outcome in baseline_auth_stats:
-                    baseline_auth_outcomes[outcome["outcome"]] = outcome["count"]
-
-                frameworks["baseline"]["auth_outcomes"] = baseline_auth_outcomes
-                frameworks["baseline"]["trusted_devices"] = trusted_devices_count
-
             return {
                 "comparison_period_hours": hours,
-                "proposed_framework": frameworks.get("proposed", {}),
-                "baseline_framework": frameworks.get("baseline", {}),
+                "frameworks": frameworks,
                 "comparison": {
                     "frameworks_available": list(frameworks.keys()),
                     "total_comparisons": sum(fw.get("total_events", 0) for fw in frameworks.values()),
@@ -628,8 +620,7 @@ def get_comparison_metrics(
     except Exception as e:
         return {
             "error": str(e),
-            "proposed_framework": {},
-            "baseline_framework": {},
+            "frameworks": {},
             "comparison": {}
         }
 

@@ -122,15 +122,31 @@ secrets/
 credentials/
 private/
 
-# Data files (too large for git)
-data/cicids/*.csv
-data/geolite2/*.mmdb
+# Data files (too large for git, or licensed and not redistributable).
+# The trailing bare "data/" rule this block used to end with silently ignored
+# the whole data/ directory regardless of the negations below it (git applies
+# rules in order — a later blanket rule re-excludes anything a negation above
+# it un-ignored) — meaning the small curated pipeline inputs below were never
+# actually tracked. Fixed: blanket-ignore by extension, then explicitly keep
+# the handful of small, essential, hand-curated CSVs a fresh clone needs to
+# run the simulator at all.
+*.csv
+*.mmdb
 !data/wifi/wigle_sample.csv
 !data/device_posture/device_posture.csv
 !data/tls/ja3_fingerprints.csv
-*.csv
-*.mmdb
-data/
+!data/rba/rba_sample.csv
+
+# Large external raw datasets (downloaded separately, not redistributed —
+# see updated/reference_material/citations_rba_dataset.md for how to obtain
+# them). Includes CIC-IDS2018 (~1.2GB) and the raw RBA dataset zip (~1GB) —
+# only the small filtered rba_sample.csv above is tracked.
+datasets/
+
+# Thesis manuscript itself — kept local-only. This is a public repo; the
+# code, figures, and reference material documenting real results are fine
+# to share, but the in-progress unpublished manuscript is not.
+updated/*.docx
 
 
 # Documentation build

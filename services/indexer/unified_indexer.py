@@ -482,7 +482,7 @@ class UnifiedIndexer:
             q_perf = """
                 WITH latency_stats AS (
                   SELECT CASE WHEN service_name IN ('validation','trust','gateway') THEN 'proposed'
-                              WHEN service_name = 'baseline' THEN 'baseline' END AS framework_type,
+                              WHEN service_name = 'ablation' THEN 'ablation' END AS framework_type,
                          duration_ms
                   FROM zta.performance_metrics
                   WHERE created_at > COALESCE(%s, NOW() - INTERVAL '24 hours') AND operation = 'decision'

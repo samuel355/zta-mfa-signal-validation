@@ -1,0 +1,16 @@
+device_id,os,patched,edr,last_update
+dev-001,Windows11,true,ok,2025-08-20
+dev-002,Ubuntu,false,missing,2025-07-14
+dev-003,macOS14,true,ok,2025-08-28
+dev-004,Windows10,false,outdated,2025-06-30
+dev-005,Android13,true,ok,2025-08-25
+dev-006,iOS17,true,ok,2025-08-27
+dev-007,WindowsServer2019,false,missing,2025-07-10
+dev-008,Debian12,true,ok,2025-08-15
+dev-009,macOS13,false,missing,2025-06-18
+dev-010,Windows7,false,none,2025-05-12
+dev-011,Windows11,true,ok,2025-08-30
+dev-012,Ubuntu,true,ok,2025-08-22
+dev-013,Android12,false,outdated,2025-06-05
+dev-014,iOS16,true,ok,2025-08-28
+dev-015,CentOS7,false,missing,2025-05-29

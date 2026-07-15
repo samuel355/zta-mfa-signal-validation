@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
 import os, json
@@ -42,13 +42,29 @@ def get_engine() -> Optional[Engine]:
     if "sslmode=" not in dsn:
         dsn += ("&" if "?" in dsn else "?") + "sslmode=require"
     try:
-        _engine = create_engine(dsn, pool_pre_ping=True, future=True)
-        with _engine.connect() as c: c.execute(text("select 1"))
+        _engine = create_engine(dsn, pool_pre_ping=True, future=True,
+                                 pool_size=3, max_overflow=3,
+                                 connect_args={"prepare_threshold": None})
+        _warm_pool(_engine, 3)
         print(f"[DB] Engine created OK for {_mask_dsn(dsn)}")
     except Exception as e:
         print(f"[DB] Failed to create engine for {_mask_dsn(dsn)}: {e}")
         _engine = None
     return _engine
+
+def _warm_pool(engine: Engine, n: int):
+    """Eagerly open N pooled connections at startup. Each new connection to the
+    remote Supabase DB costs ~1.3s (cross-region TCP+TLS+Postgres handshake) —
+    paying that once at boot avoids paying it mid-request under concurrent load."""
+    conns = []
+    try:
+        for _ in range(n):
+            c = engine.connect()
+            c.execute(text("select 1"))
+            conns.append(c)
+    finally:
+        for c in conns:
+            c.close()
 
 CRIT_TLS = {s.strip().lower() for s in (os.getenv("TLS_CRITICAL_TAGS","").split(",") if os.getenv("TLS_CRITICAL_TAGS") else [])}
 if not CRIT_TLS:
@@ -57,21 +73,19 @@ if not CRIT_TLS:
 def compute_reasons(signals: Dict[str, Any], enr: Dict[str, Any]) -> list[str]:
     R: list[str] = []
 
-    # STRIDE via CICIDS
+    # STRIDE via CIC-IDS2018
     L = str(signals.get("label") or "").upper()
     if L and L != "BENIGN":
-        if "DDOS" in L or L.startswith("DOS") or "PORTSCAN" in L:
+        if "DOS-GOLDENEYE" in L or "DOS-SLOWLORIS" in L or "DDOS" in L or L.startswith("DOS"):
             R.append("DOS")                      # Denial of Service
-        if "WEB ATTACK" in L or "SQLI" in L or "XSS" in L:
+        if "XSS" in L or "SQL INJECTION" in L or "BRUTE FORCE-WEB" in L or "WEB ATTACK" in L:
             R.append("POLICY_ELEVATION")         # Elevation of Privilege
-        if "BOT" in L or "INFILTRATION" in L:
+        if "FTP-BRUTEFORCE" in L or "SSH-BRUTEFORCE" in L or "BRUTEFORCE" in L:
+            R.append("CREDENTIAL_ATTACK")        # Spoofing / credential stuffing
+        if "BOT" in L or "INFILTERATION" in L or "INFILTRATION" in L:
             R.append("DOWNLOAD_EXFIL")           # Information Disclosure
         if "HEARTBLEED" in L:
             R.append("TLS_ANOMALY")
-        if "Heartbleed" in L:
-            R.append("TLS_ANOMALY")
-        if "Infiltration" in L:
-            R.append("INFORMATION_DISCLOSURE")                # Tampering
 
     # Spoofing (GPS vs Wi-Fi/IP distance)
     dist = ((enr.get("checks") or {}).get("ip_wifi_distance_km"))
@@ -127,22 +141,21 @@ def aggregate(signals: dict, w: dict, reasons: list[str]) -> dict:
     # also include a helper set of which signals appeared (for debug in DB)
     return {"vector": signals, "weights": w, "reasons": reasons, "signals_observed": sorted(list({*signals.keys()}))}
 
+@api.on_event("startup")
+def _startup():
+    """Warm the DB pool before accepting traffic — uvicorn won't serve requests
+    until this completes, so no request ever pays the cold-connection cost."""
+    get_engine()
+
 @api.get("/datasets")
 def datasets(): return {"loaded": DATA_STATUS}
 
 @api.get("/health")
 def health(): return {"status":"ok"}
 
-@api.post("/validate")
-def validate(payload: SignalPayload):
-    e = enrich_all(payload.signals)
-    q = quality_checks(payload.signals)
-    x = cross_checks(e)
-    reasons = compute_reasons(payload.signals, e)
-    w = compute_weights(payload.signals, q, x, e)
-    v = aggregate(payload.signals, w, reasons)
-
-    persistence = {"ok": False}
+def _persist_validated_context(session_id: str, signals: dict, w: dict, q: dict, x: dict, e: dict, reasons: list):
+    """Fire-and-forget DB write + ES indexing — runs after the response is already
+    sent, so remote round-trips do not count toward decision latency."""
     eng = get_engine()
     if eng is not None:
         try:
@@ -154,18 +167,16 @@ def validate(payload: SignalPayload):
                       (:session_id, cast(:signals as jsonb), cast(:weights as jsonb),
                        cast(:quality as jsonb), cast(:cross as jsonb), cast(:enrichment as jsonb))
                 """), {
-                    "session_id": v["vector"].get("session_id") or f"sess-{os.urandom(4).hex()}",
-                    "signals": json.dumps(payload.signals),
+                    "session_id": session_id,
+                    "signals": json.dumps(signals),
                     "weights": json.dumps(w),
                     "quality": json.dumps(q),
                     "cross": json.dumps(x),
                     "enrichment": json.dumps(e),
                 })
-            persistence={"ok": True}
         except Exception as ex:
-            persistence={"ok": False, "error": str(ex)}
+            print(f"[VALIDATION][DB] Insert failed: {ex}")
 
-        # --- Send validated context to Elasticsearch ---
         try:
             from datetime import datetime
             es_host = os.getenv("ES_HOST", "http://elasticsearch:9200").rstrip("/")
@@ -176,8 +187,8 @@ def validate(payload: SignalPayload):
 
             doc = {
                 "@timestamp": datetime.utcnow().isoformat(),
-                "session_id": v["vector"].get("session_id"),
-                "signals": payload.signals,
+                "session_id": session_id,
+                "signals": signals,
                 "weights": w,
                 "quality": q,
                 "cross_checks": x,
@@ -199,5 +210,18 @@ def validate(payload: SignalPayload):
         except Exception as ex:
             print(f"[VALIDATION] Failed to index validated context: {ex}")
 
+
+@api.post("/validate")
+def validate(payload: SignalPayload, background_tasks: BackgroundTasks):
+    e = enrich_all(payload.signals)
+    q = quality_checks(payload.signals)
+    x = cross_checks(e)
+    reasons = compute_reasons(payload.signals, e)
+    w = compute_weights(payload.signals, q, x, e)
+    v = aggregate(payload.signals, w, reasons)
+
+    session_id = v["vector"].get("session_id") or f"sess-{os.urandom(4).hex()}"
+    background_tasks.add_task(_persist_validated_context, session_id, payload.signals, w, q, x, e, reasons)
+    persistence = {"ok": "scheduled"}
 
     return {"validated": v, "quality": q, "cross": x, "enrichment": e, "persistence": persistence}

@@ -1,6 +1,6 @@
 import os, json
 from typing import Dict, Any, Optional
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
@@ -8,17 +8,10 @@ from .decision_engine import process_proposed_request, get_proposed_thesis_metri
 
 api = FastAPI(title="Trust Service", version="0.5")
 
-# ---------- Thresholds ----------
-ALLOW_T = float(os.getenv("ALLOW_T", "0.12"))
-DENY_T  = float(os.getenv("DENY_T", "0.80"))
-SIEM_HIGH_BUMP = float(os.getenv("SIEM_HIGH_BUMP", "0.18"))
-SIEM_MED_BUMP  = float(os.getenv("SIEM_MED_BUMP", "0.08"))
-TRUST_BASE_GAIN = float(os.getenv("TRUST_BASE_GAIN", "0.02"))
-TRUST_FALLBACK_OBSERVED = float(os.getenv("TRUST_FALLBACK_OBSERVED", "0.05"))
-
-# Thesis-compliant configuration
-BENIGN_TRAFFIC_PERCENT = float(os.getenv("BENIGN_TRAFFIC_PERCENT", "70")) / 100
-VALIDATION_CONFIDENCE_THRESHOLD = float(os.getenv("VALIDATION_CONFIDENCE_THRESHOLD", "0.70"))
+# NOTE: all risk-scoring thresholds and weights (ALLOW_T, DENY_T, SIEM_HIGH_BUMP,
+# SIEM_MED_BUMP, TRUST_BASE_GAIN, TRUST_FALLBACK_OBSERVED, VALIDATION_CONFIDENCE_THRESHOLD)
+# live in decision_engine.py's ProposedThesisConfig — this module previously
+# duplicated them as dead constants that were never referenced.
 
 _engine: Optional[Engine] = None
 
@@ -38,14 +31,27 @@ def get_engine() -> Optional[Engine]:
     if "sslmode=" not in dsn:
         dsn += ("&" if "?" in dsn else "?") + "sslmode=require"
     try:
-        _engine = create_engine(dsn, pool_pre_ping=True, future=True)
-        with _engine.connect() as c:
-            c.execute(text("select 1"))
+        _engine = create_engine(dsn, pool_pre_ping=True, future=True,
+                                 pool_size=3, max_overflow=3,
+                                 connect_args={"prepare_threshold": None})
+        _warm_pool(_engine, 3)
         print("[TRUST][DB] Engine created OK")
     except Exception as e:
         print(f"[TRUST][DB] Failed to init engine: {e}")
         _engine = None
     return _engine
+
+def _warm_pool(engine: Engine, n: int):
+    """Eagerly open N pooled connections at startup — see validation service for rationale."""
+    conns = []
+    try:
+        for _ in range(n):
+            c = engine.connect()
+            c.execute(text("select 1"))
+            conns.append(c)
+    finally:
+        for c in conns:
+            c.close()
 
 # ---------- Payload ----------
 class ScorePayload(BaseModel):
@@ -54,14 +60,39 @@ class ScorePayload(BaseModel):
     reasons: list[str] = []
     siem: Dict[str, int] = {}
 
+@api.on_event("startup")
+def _startup():
+    """Warm the DB pool before accepting traffic — see validation service for rationale."""
+    get_engine()
+
 # ---------- Health ----------
 @api.get("/health")
 def health():
     return {"status": "ok"}
 
 # ---------- Score ----------
+def _persist_trust_decision(session_id: str, risk: float, decision: str, components: dict):
+    """Fire-and-forget persistence — runs after the response is already sent, so it
+    does not count toward client-perceived authentication decision latency."""
+    eng = get_engine()
+    if eng is None:
+        return
+    try:
+        with eng.begin() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO zta.trust_decisions (session_id, risk, decision, components)
+                    VALUES (:sid, :risk, :decision, CAST(:comp AS jsonb))
+                """),
+                {"sid": session_id, "risk": risk, "decision": decision, "comp": json.dumps(components)}
+            )
+            print(f"[TRUST] {session_id}: {decision} (risk={risk:.3f}) persisted")
+    except Exception as e:
+        print(f"[TRUST][DB] Insert failed: {e}")
+
+
 @api.post("/score")
-def score(payload: ScorePayload):
+def score(payload: ScorePayload, background_tasks: BackgroundTasks):
     """Score using thesis-compliant proposed framework engine"""
     import time
     decision_start_time = time.perf_counter()
@@ -111,41 +142,21 @@ def score(payload: ScorePayload):
     decision_time_ms = result.get("thesis_metrics", {}).get("processing_time_ms",
                                   int((decision_end_time - decision_start_time) * 1000))
 
-    # --- Persist decision ---
-    persistence = {"ok": False}
-    eng = get_engine()
-    if eng is not None:
-        try:
-            with eng.begin() as conn:
-                conn.execute(
-                    text("""
-                        INSERT INTO zta.trust_decisions (session_id, risk, decision, components)
-                        VALUES (:sid, :risk, :decision, CAST(:comp AS jsonb))
-                    """),
-                    {
-                        "sid": session_id,
-                        "risk": risk,
-                        "decision": decision,
-                        "comp": json.dumps({
-                            "reasons": reasons,
-                            "weights": weights,
-                            "siem_bump": siem,
-                            "stride": stride_components,
-                            "decision_time_ms": decision_time_ms,
-                            "confidence_multiplier": confidence_multiplier,
-                            "is_benign_traffic": is_benign_traffic,
-                            "signal_quality": validation_metrics.get("signal_coverage", sum(weights.values()) if weights else 0),
-                            "validation_confidence": confidence_multiplier,
-                            "enrichment_quality": validation_metrics.get("enrichment_quality_score", 0.8),
-                            "context_mismatches": details.get("context_mismatches", 0)
-                        })
-                    }
-                )
-            persistence = {"ok": True}
-            print(f"[TRUST] {session_id}: {decision} (risk={risk:.3f}, time={decision_time_ms}ms)")
-        except Exception as e:
-            persistence = {"ok": False, "error": str(e)}
-            print(f"[TRUST][DB] Insert failed: {e}")
+    # --- Persist decision (async, off the decision-latency critical path) ---
+    background_tasks.add_task(_persist_trust_decision, session_id, risk, decision, {
+        "reasons": reasons,
+        "weights": weights,
+        "siem_bump": siem,
+        "stride": stride_components,
+        "decision_time_ms": decision_time_ms,
+        "confidence_multiplier": confidence_multiplier,
+        "is_benign_traffic": is_benign_traffic,
+        "signal_quality": validation_metrics.get("signal_coverage", sum(weights.values()) if weights else 0),
+        "validation_confidence": confidence_multiplier,
+        "enrichment_quality": validation_metrics.get("enrichment_quality_score", 0.8),
+        "context_mismatches": details.get("context_mismatches", 0)
+    })
+    persistence = {"ok": "scheduled"}
 
     # Return response compatible with existing API
     return {

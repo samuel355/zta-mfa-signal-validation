@@ -1,7 +1,7 @@
 import os, json, socket, urllib.parse, datetime as dt
 import httpx, pyotp
 from typing import Optional, Dict, Any
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
@@ -91,19 +91,37 @@ def get_engine() -> Optional[Engine]:
     if "sslmode=" not in dsn:
         dsn += ("&" if "?" in dsn else "?") + "sslmode=require"
     try:
-        _engine = create_engine(dsn, pool_pre_ping=True, future=True)
-        with _engine.connect() as conn:
-            conn.execute(text("select 1"))
+        _engine = create_engine(dsn, pool_pre_ping=True, future=True,
+                                 pool_size=3, max_overflow=3,
+                                 connect_args={"prepare_threshold": None})
+        _warm_pool(_engine, 3)
         print(f"[DB] Engine created OK for {_mask_dsn(dsn)}")
     except Exception as e:
         print(f"[DB] Failed to create engine for {_mask_dsn(dsn)}: {e}")
         _engine = None
     return _engine
 
+def _warm_pool(engine: Engine, n: int):
+    """Eagerly open N pooled connections at startup — see validation service for rationale."""
+    conns = []
+    try:
+        for _ in range(n):
+            c = engine.connect()
+            c.execute(text("select 1"))
+            conns.append(c)
+    finally:
+        for c in conns:
+            c.close()
+
 # -------------------- Models --------------------
 class ValidateAndDecide(BaseModel):
     validated: Dict[str, Any]
     siem: Dict[str, int] = {}
+
+@api.on_event("startup")
+def _startup():
+    """Warm the DB pool before accepting traffic — see validation service for rationale."""
+    get_engine()
 
 # -------------------- Health --------------------
 @api.get("/health")
@@ -142,8 +160,76 @@ def dnscheck():
 _TOTP_SECRET = os.getenv("TOTP_SECRET", "JBSWY3DPEHPK3PXP")
 totp = pyotp.TOTP(_TOTP_SECRET)
 
+def _persist_gateway_decision(session_id: str, decision: str, risk: float, enforcement: str,
+                               reasons: list, weights: dict, siem_counts: dict, detail_extra: dict):
+    """Fire-and-forget DB + ES persistence — runs after the response is already sent."""
+    eng = get_engine()
+    if eng is not None:
+        try:
+            params = {
+                "session_id": session_id,
+                "method": "gateway_policy",
+                "outcome": (
+                    "sent" if enforcement == "MFA_STEP_UP"
+                    else "failed" if enforcement == "DENY"
+                    else "success"
+                ),
+                "detail": json.dumps({
+                    "risk": risk,
+                    "decision": decision,
+                    "enforcement": enforcement,
+                    "reasons": reasons,
+                    "stride": list({r.split("_")[0] for r in reasons}),
+                    "signals_used": list(weights.keys()),
+                    "siem_counts": siem_counts,
+                    **detail_extra
+                }),
+            }
+            with eng.begin() as conn:
+                conn.execute(
+                    text("""
+                        INSERT INTO zta.mfa_events (session_id, method, outcome, detail)
+                        VALUES (:session_id, :method, :outcome, CAST(:detail AS jsonb))
+                    """),
+                    params,
+                )
+        except Exception as ex:
+            print(f"[GATEWAY][DB] Insert failed: {ex}")
+
+    if decision.lower() in ("step_up", "deny", "allow"):
+        STRIDE_MAP = {
+            "SPOOFING": "Spoofing",
+            "TLS": "Tampering",
+            "TLS_ANOMALY": "Tampering",
+            "POSTURE": "Tampering",
+            "POSTURE_OUTDATED": "Tampering",
+            "REPUDIATION": "Repudiation",
+            "DOWNLOAD": "Information Disclosure",
+            "EXFIL": "Information Disclosure",
+            "DOS": "Denial of Service",
+            "DDOS": "Denial of Service",
+            "POLICY": "Escalation of Privilege",
+            "EOP": "Escalation of Privilege",
+        }
+
+        stride_value = None
+        for r in reasons:
+            for k, v in STRIDE_MAP.items():
+                if r.upper().startswith(k):
+                    stride_value = v
+                    break
+            if stride_value:
+                break
+        if not stride_value:
+            stride_value = "Spoofing"
+
+        index_to_es(session_id, enforcement, risk, decision, reasons + [stride_value], index="mfa-events")
+        index_to_es(session_id=session_id, enforcement=enforcement, risk=risk, decision=decision,
+                    reasons=[stride_value], index="siem-alerts")
+
+
 @api.post("/decision")
-def decision(payload: ValidateAndDecide):
+def decision(payload: ValidateAndDecide, background_tasks: BackgroundTasks):
     validated = payload.validated or {}
     vector    = validated.get("vector", {}) or {}
     weights   = {k: float(v) for k, v in (validated.get("weights") or {}).items()}
@@ -194,95 +280,12 @@ def decision(payload: ValidateAndDecide):
     elif decision == "deny":
         enforcement = "DENY"
 
-    # ---------------- DB Persistence ----------------
-    persistence = {"ok": False}
-    eng = get_engine()
-    if eng is not None:
-        try:
-            params = {
-                "session_id": session_id,
-                "method": "gateway_policy",
-                "outcome": (
-                    "sent" if enforcement == "MFA_STEP_UP"
-                    else "failed" if enforcement == "DENY"
-                    else "success"
-                ),
-                "detail": json.dumps({
-                    "risk": risk,
-                    "decision": decision,
-                    "enforcement": enforcement,
-                    "reasons": reasons,
-                    "stride": list({r.split("_")[0] for r in reasons}),   # STRIDE classes
-                    "signals_used": list(weights.keys()),
-                    **detail
-                }),
-            }
-            with eng.begin() as conn:
-                conn.execute(
-                    text("""
-                        INSERT INTO zta.mfa_events (session_id, method, outcome, detail)
-                        VALUES (:session_id, :method, :outcome, CAST(:detail AS jsonb))
-                    """),
-                    params,
-                )
-            persistence = {"ok": True}
-        except Exception as ex:
-            persistence = {"ok": False, "error": str(ex)}
-
-
-    # ---------------- SIEM Persistence ----------------
-    # SIEM alerts are now handled by the dedicated SIEM service worker
-    # which processes MFA events to avoid double insertion
-
-    # ---------------- Elasticsearch index ----------------
-    if decision.lower() in ("step_up", "deny", "allow"):
-        # Map reasons to STRIDE values for Elasticsearch too
-        STRIDE_MAP = {
-            "SPOOFING": "Spoofing",
-            "TLS": "Tampering",
-            "TLS_ANOMALY": "Tampering",
-            "POSTURE": "Tampering",
-            "POSTURE_OUTDATED": "Tampering",
-            "REPUDIATION": "Repudiation",
-            "DOWNLOAD": "Information Disclosure",
-            "EXFIL": "Information Disclosure",
-            "DOS": "Denial of Service",
-            "DDOS": "Denial of Service",
-            "POLICY": "Escalation of Privilege",
-            "EOP": "Escalation of Privilege",
-        }
-
-        stride_value = None
-        for r in reasons:
-            for k, v in STRIDE_MAP.items():
-                if r.upper().startswith(k):
-                    stride_value = v
-                    break
-            if stride_value:
-                break
-        if not stride_value:
-            stride_value = "Spoofing"
-
-
-        # Always index MFA events
-        index_to_es(
-            session_id,
-            enforcement,
-            risk,
-            decision,
-            reasons + [stride_value],   # keep reasons + stride
-            index="mfa-events"
-        )
-
-        #Risky events also gets to siem
-        index_to_es(
-            session_id=session_id,
-            enforcement=enforcement,
-            risk=risk,
-            decision=decision,
-            reasons=[stride_value],   # pass STRIDE value instead of raw reasons
-            index="siem-alerts"
-        )
+    # ---------------- Persistence (async, off the decision-latency critical path) ----------------
+    background_tasks.add_task(
+        _persist_gateway_decision, session_id, decision, risk, enforcement,
+        reasons, weights, siem_counts, detail
+    )
+    persistence = {"ok": "scheduled"}
 
     resp = {
         "session_id": session_id,

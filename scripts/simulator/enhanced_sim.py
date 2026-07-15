@@ -10,16 +10,22 @@ import httpx
 import asyncio
 from sqlalchemy import create_engine, text
 
+from country_centroids import COUNTRY_CENTROIDS
+
 # ------------------- Paths -------------------
 DATA_DIR      = os.getenv("DATA_DIR", "/app/data")
-CICIDS_DIR    = os.getenv("CICIDS_DIR", f"{DATA_DIR}/cicids")
+CIC2018_DIR   = os.getenv("CIC2018_DIR", f"{DATA_DIR}/cic2018")
 WIFI_CSV      = os.getenv("WIFI_CSV",  f"{DATA_DIR}/wifi/wigle_sample.csv")
 DEVICE_CSV    = os.getenv("DEVICE_CSV",f"{DATA_DIR}/device_posture/device_posture.csv")
 TLS_CSV       = os.getenv("TLS_CSV",   f"{DATA_DIR}/tls/ja3_fingerprints.csv")
+RBA_CSV       = os.getenv("RBA_CSV",   f"{DATA_DIR}/rba/rba_sample.csv")
 
 VALIDATE_URL  = os.getenv("VALIDATE_URL", "http://validation:8000/validate")
 GATEWAY_URL   = os.getenv("GATEWAY_URL",  "http://gateway:8000/decision")
-BASELINE_URL  = os.getenv("BASELINE_URL", "http://baseline:8000/decision")
+ABLATION_URL  = os.getenv("ABLATION_URL", "http://ablation:8000/decision")
+AHMADI_URL    = os.getenv("AHMADI_URL",   "http://ahmadi2025:8000/decision")
+JIMMY_URL     = os.getenv("JIMMY_URL",    "http://jimmy2025:8000/decision")
+PHANI_URL     = os.getenv("PHANI_URL",    "http://phani2025:8000/decision")
 
 # Database connection
 DB_DSN = os.getenv("DB_DSN", "postgresql://postgres:password@localhost:5432/postgres")
@@ -40,13 +46,33 @@ MIN_TLS    = float(os.getenv("SIM_MIN_TLS", "0.7"))
 MIN_DEVICE = float(os.getenv("SIM_MIN_DEVICE", "0.85"))
 GPS_OFFSET_KM = float(os.getenv("SIM_GPS_OFFSET_KM","600"))
 
-# STRIDE class mix
-P_SPOOF   = float(os.getenv("SIM_PCT_SPOOFING","0.20"))
-P_TLS     = float(os.getenv("SIM_PCT_TLS_TAMPERING","0.15"))
-P_DOS     = float(os.getenv("SIM_PCT_DOS","0.20"))
-P_EXFIL   = float(os.getenv("SIM_PCT_EXFIL","0.15"))
+# WiFi pool BSSIDs treated as the user's known/home access points. The pool
+# also contains several globally-scattered entries (Lagos, Nairobi, Cairo,
+# London, NYC, SF, Paris) for spoofing scenarios to draw from; without this
+# split, random.choice() across the whole pool assigned foreign APs to ~80%
+# of *benign* sessions too, making location_risk's benign-vs-malicious signal
+# almost meaningless (mean benign location_risk ended up 0.38, close to a
+# genuinely spoofed session's). HOME_BSSID_PCT controls how often a
+# non-spoof session draws from the home cluster instead of the full pool.
+HOME_BSSIDS = {"00:11:22:33:44:55", "00:11:22:33:44:66"}
+HOME_BSSID_PCT = float(os.getenv("SIM_HOME_BSSID_PCT", "0.85"))
+
+# STRIDE class mix. These + P_BENIGN must leave room for genuinely benign traffic —
+# _setup_stride_buckets() normalizes whatever is passed to sum to 1.0, so if every
+# bucket here represents an injected anomaly, ground truth never contains a real
+# negative class and FPR becomes undefined. P_BENIGN reserves an explicit no-scenario
+# path that keeps each sample's real CIC-IDS2018 label untouched.
+P_SPOOF   = float(os.getenv("SIM_PCT_SPOOFING","0.15"))
+P_TLS     = float(os.getenv("SIM_PCT_TLS_TAMPERING","0.12"))
+P_DOS     = float(os.getenv("SIM_PCT_DOS","0.18"))
+P_EXFIL   = float(os.getenv("SIM_PCT_EXFIL","0.12"))
 P_EOP     = float(os.getenv("SIM_PCT_EOP","0.15"))
-P_REP     = float(os.getenv("SIM_PCT_REPUDIATION","0.15"))
+P_REP     = float(os.getenv("SIM_PCT_REPUDIATION","0.08"))
+P_BENIGN  = float(os.getenv("SIM_PCT_BENIGN","0.20"))
+
+# Fraction of "spoof" bucket samples sourced from real RBA account-takeover
+# ground truth rather than the synthetic CIC-IDS2018+WiFi-offset injection.
+RBA_SPOOF_PCT = float(os.getenv("SIM_RBA_SPOOF_PCT", "0.5"))
 
 class EnhancedSimulator:
     """Enhanced simulator matching original sim.py logic with baseline comparison"""
@@ -55,11 +81,14 @@ class EnhancedSimulator:
         self.wifi_pool = []
         self.tls_pool = []
         self.dev_pool = []
-        self.cicids_rows = []
+        self.cic2018_rows = []
+        self.rba_attack_rows = []
+        self.rba_benign_rows = []
         self.stride_buckets = []
         self.engine = None
         self._init_database()
         self._load_data()
+        self._load_rba_data()
         self._setup_stride_buckets()
 
     def _init_database(self):
@@ -68,6 +97,9 @@ class EnhancedSimulator:
 
     def _get_engine(self):
         """Get database engine using validation service pattern"""
+        if self.engine is not None:
+            return self.engine
+
         dsn = DB_DSN.strip()
         if not dsn:
             print("[DB] DB_DSN missing; skipping persistence")
@@ -83,10 +115,20 @@ class EnhancedSimulator:
             dsn += ("&" if "?" in dsn else "?") + "sslmode=require"
 
         try:
-            engine = create_engine(dsn, pool_pre_ping=True, future=True)
-            with engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
-            print(f"[DB] Database engine created successfully")
+            engine = create_engine(dsn, pool_pre_ping=True, future=True,
+                                    pool_size=3, max_overflow=3,
+                                    connect_args={"prepare_threshold": None})
+            conns = []
+            try:
+                for _ in range(3):
+                    c = engine.connect()
+                    c.execute(text("SELECT 1"))
+                    conns.append(c)
+            finally:
+                for c in conns:
+                    c.close()
+            print(f"[DB] Database engine created successfully (pool pre-warmed)")
+            self.engine = engine
             return engine
         except Exception as e:
             print(f"[DB] Failed to create database engine: {e}")
@@ -133,10 +175,10 @@ class EnhancedSimulator:
         except Exception as e:
             print(f"[DATA] Failed to load device data: {e}")
 
-        # Load CICIDS data (matching original logic)
-        cic_files = self._list_csvs(CICIDS_DIR)
+        # Load CIC-IDS2018 data
+        cic_files = self._list_csvs(CIC2018_DIR)
         if not cic_files:
-            print(f"[DATA] No CICIDS files in {CICIDS_DIR}")
+            print(f"[DATA] No CIC-IDS2018 files in {CIC2018_DIR}")
             return
 
         rows = []
@@ -152,18 +194,83 @@ class EnhancedSimulator:
                             benign.append(x)
                     else:
                         attacks.append(x)
-                rows.extend((attacks + benign)[:MAX_PER_FILE])
+                # Reserve explicit slots for benign rows instead of just concatenating
+                # attacks+benign and slicing to MAX_PER_FILE — if attacks alone exceed
+                # MAX_PER_FILE (common for CIC-IDS2018 attack-window files), benign rows
+                # were silently dropped entirely, leaving no genuine negative-class
+                # ground truth for FPR/TNR measurement.
+                n_benign_slots = int(MAX_PER_FILE * 0.30)
+                n_attack_slots = MAX_PER_FILE - n_benign_slots
+                rows.extend(attacks[:n_attack_slots] + benign[:n_benign_slots])
             except Exception as e:
                 print(f"[DATA] Failed to process {f}: {e}")
 
         random.shuffle(rows)
-        self.cicids_rows = rows
-        print(f"[DATA] Loaded {len(self.cicids_rows)} CICIDS samples")
+        self.cic2018_rows = rows
+        print(f"[DATA] Loaded {len(self.cic2018_rows)} CIC-IDS2018 samples")
+
+    def _load_rba_data(self):
+        """Load the RBA (Risk-Based Authentication) stream-sampled subset —
+        real 'Is Attack IP' / 'Is Account Takeover' ground truth for the
+        Spoofing STRIDE bucket, replacing the synthetic CIC-IDS2018+WiFi-offset
+        injection with genuine credential-stuffing/account-takeover events from
+        Wiefling et al.'s real-world login dataset. See
+        updated/reference_material/citations_rba_dataset.md. Falls back to the
+        synthetic method (see _make_spoofing) if the sample file isn't present —
+        this is a supplementary signal source, not a hard dependency.
+        """
+        if not os.path.isfile(RBA_CSV):
+            print(f"[DATA] No RBA sample at {RBA_CSV}; spoof bucket uses CIC-IDS2018 GPS-offset injection")
+            return
+        rows = self._read_csv(RBA_CSV)
+        for r in rows:
+            is_attack = r.get("Is Attack IP") == "True" or r.get("Is Account Takeover") == "True"
+            (self.rba_attack_rows if is_attack else self.rba_benign_rows).append(r)
+        print(f"[DATA] Loaded RBA sample: {len(self.rba_attack_rows)} attack rows, {len(self.rba_benign_rows)} benign rows")
+
+    def _make_spoofing_from_rba(self, sig):
+        """Real ground-truth spoofing signal, built from an RBA dataset row
+        flagged Is Attack IP / Is Account Takeover — an actual credential-
+        stuffing/account-takeover event rather than a synthetic GPS offset.
+        Only Country-level geolocation is available in the public RBA release
+        (Region/City are redacted), so GPS is approximated via a country
+        centroid with a small jitter.
+
+        Also attaches a "home"-cluster WiFi AP (the account's normal network)
+        alongside the RBA-derived GPS — without this, the validation layer's
+        GPS-vs-WiFi distance check (the actual mechanism that flags Spoofing;
+        see services/validation/app/main.py's ip_wifi_distance_km check) would
+        have nothing to compare against and could never detect these sessions,
+        silently making this "harder" ground truth undetectable by construction
+        rather than a genuine test of the framework."""
+        row = random.choice(self.rba_attack_rows)
+        country = (row.get("Country") or "").strip().upper()
+        base_lat, base_lon = COUNTRY_CENTROIDS.get(country, (0.0, 0.0))
+        sig["gps"] = {
+            "lat": base_lat + random.uniform(-0.3, 0.3),
+            "lon": base_lon + random.uniform(-0.3, 0.3),
+        }
+        home_ap = self._pick_wifi_row(force_foreign=False)
+        if home_ap:
+            bssid = home_ap.get("bssid") or home_ap.get("BSSID")
+            if bssid:
+                sig["wifi_bssid"] = {"bssid": str(bssid).lower()}
+        ip = row.get("IP Address")
+        if ip:
+            sig["ip_geo"] = {"ip": ip, "country": country}
+        device_type = (row.get("Device Type") or "unknown").strip().lower()
+        # RBA has no patch/EDR signal — not fabricating one; device_posture here
+        # only carries what RBA actually provides (device type, pseudonymous ID).
+        sig["device_posture"] = {
+            "device_id": f"rba-{row.get('User ID', 'unknown')}",
+            "device_type": device_type,
+        }
 
     def _setup_stride_buckets(self):
         """Setup STRIDE buckets (matching original logic)"""
         buckets = [("spoof", P_SPOOF), ("tls", P_TLS), ("dos", P_DOS),
-                  ("exfil", P_EXFIL), ("eop", P_EOP), ("rep", P_REP)]
+                  ("exfil", P_EXFIL), ("eop", P_EOP), ("rep", P_REP),
+                  ("benign", P_BENIGN)]
         total = sum(p for _, p in buckets) or 1.0
         cum = []
         acc = 0.0
@@ -173,7 +280,7 @@ class EnhancedSimulator:
         self.stride_buckets = cum
 
     def _get_src_ip(self, row: Dict[str, Any]) -> Optional[str]:
-        """Extract source IP from CICIDS row"""
+        """Extract source IP from CIC-IDS2018 row"""
         for k, v in row.items():
             kk = str(k).replace("_", " ").strip().lower()
             if "src" in kk and "ip" in kk:
@@ -218,6 +325,22 @@ class EnhancedSimulator:
         except:
             return random.choice(pool)
 
+    def _pick_wifi_row(self, force_foreign: bool = False):
+        """Pick a WiFi AP, weighting toward the user's known home cluster for
+        normal traffic so location_risk carries real signal (see HOME_BSSIDS)."""
+        if not self.wifi_pool:
+            return None
+
+        home = [r for r in self.wifi_pool if str(r.get("bssid") or r.get("BSSID") or "").lower() in HOME_BSSIDS]
+        foreign = [r for r in self.wifi_pool if str(r.get("bssid") or r.get("BSSID") or "").lower() not in HOME_BSSIDS]
+
+        if force_foreign:
+            return random.choice(foreign) if foreign else random.choice(self.wifi_pool)
+
+        if home and random.random() < HOME_BSSID_PCT:
+            return random.choice(home)
+        return random.choice(self.wifi_pool)
+
     def _ensure_floors(self, sig):
         """Ensure minimum data presence (matching original logic)"""
         # ip_geo
@@ -225,8 +348,14 @@ class EnhancedSimulator:
             sig["ip_geo"] = {"ip": f"192.0.2.{random.randint(1, 254)}"}
 
         # wifi + gps
-        if "wifi_bssid" not in sig and self.wifi_pool:
-            w = random.choice(self.wifi_pool)
+        # This floor mainly fires for buckets that never set wifi_bssid via
+        # _make_spoofing (i.e. not the CIC-IDS2018-based spoof path) — safe to
+        # use the same home-weighted selection as normal traffic. Guarded on
+        # "gps" too so it never clobbers a GPS already set by another source
+        # (e.g. _make_spoofing_from_rba's country-centroid GPS, which has no
+        # corresponding WiFi AP to report).
+        if "wifi_bssid" not in sig and "gps" not in sig and self.wifi_pool:
+            w = self._pick_wifi_row(force_foreign=False)
             b = w.get("bssid") or w.get("BSSID")
             if b:
                 sig["wifi_bssid"] = {"bssid": str(b).lower()}
@@ -278,12 +407,12 @@ class EnhancedSimulator:
         sig = {}
         sig["session_id"] = f"sess-{random.randrange(100000, 999999)}"
 
-        # Label from CICIDS
+        # Label from CIC-IDS2018
         lab = row.get("Label") or row.get(" Label") or row.get("LABEL")
         if lab:
             sig["label"] = str(lab).strip()
 
-        # IP from CICIDS
+        # IP from CIC-IDS2018
         src_ip = self._get_src_ip(row)
         if src_ip:
             sig["ip_geo"] = {"ip": src_ip}
@@ -305,7 +434,12 @@ class EnhancedSimulator:
             if dev_id:
                 patched_raw = str(dev_row.get("patched", "true")).strip().lower()
                 patched = True if patched_raw not in {"true", "false"} else (patched_raw == "true")
-                sig["device_posture"] = {"device_id": str(dev_id), "patched": patched}
+                # edr status is present in device_posture.csv ("ok"/"missing"/"outdated"/"none")
+                # but was previously dropped here, silently forcing every downstream
+                # dp.get("edr", True) check to its default (always-healthy) value.
+                edr_raw = str(dev_row.get("edr", "ok")).strip().lower()
+                edr_ok = edr_raw == "ok"
+                sig["device_posture"] = {"device_id": str(dev_id), "patched": patched, "edr": edr_ok}
 
         # TLS data
         if tls_row:
@@ -318,8 +452,20 @@ class EnhancedSimulator:
     def _apply_stride_scenario(self, sig, bucket):
         """Apply STRIDE scenario to signal (matching original logic)"""
         if bucket == "spoof":
-            self._make_spoofing(sig)
-            sig["label"] = "BENIGN"
+            # Mix real RBA-sourced credential-stuffing/account-takeover ground
+            # truth with the original CIC-IDS2018+WiFi-offset synthetic
+            # injection, rather than fully replacing it — the Spoofing category
+            # gets evaluated against both a genuine real-world attack signal
+            # and the existing geographic-mismatch signal.
+            if self.rba_attack_rows and random.random() < RBA_SPOOF_PCT:
+                self._make_spoofing_from_rba(sig)
+                sig["label"] = "SPOOFING_INJECTED_RBA"
+            else:
+                self._make_spoofing(sig)
+                # Ground truth must reflect that a real anomaly was injected (GPS/WiFi
+                # mismatch) — labeling this "BENIGN" penalized any framework that
+                # correctly detects the mismatch it was deliberately built to catch.
+                sig["label"] = "SPOOFING_INJECTED"
 
         elif bucket == "tls":
             bad = self._pick_tls_row(self.tls_pool, bad_only=True)
@@ -340,8 +486,17 @@ class EnhancedSimulator:
             sig["label"] = "WEB ATTACK"
 
         elif bucket == "rep":
-            sig["label"] = "BENIGN"
+            # Same fix as "spoof": a repudiation signal is deliberately injected,
+            # so ground truth must not say "BENIGN".
+            sig["label"] = "REPUDIATION_INJECTED"
             sig["repudiation"] = True
+
+        elif bucket == "benign":
+            # No scenario applied — leave the signal, and the real CIC-IDS2018
+            # label _mk_signals already set, untouched. This is the only path
+            # that produces genuine negative-class ground truth; without it every
+            # sample gets some synthetic anomaly and FPR/TNR are undefined.
+            pass
 
     async def _call_proposed_framework(self, client, sig):
         """Call proposed framework (validation -> gateway)"""
@@ -362,9 +517,7 @@ class EnhancedSimulator:
             decision_data = dr.json()
 
             end_time = time.perf_counter()
-            processing_time_ms = int(max(0, min(300, ((end_time - start_time) * 1000) / 10 - 50)))
-
-
+            processing_time_ms = int((end_time - start_time) * 1000)
 
             decision = decision_data.get("decision", "unknown")
             risk_score = decision_data.get("risk", 0.0)
@@ -394,29 +547,27 @@ class EnhancedSimulator:
             return None
 
     async def _call_baseline_framework(self, client, sig):
-        """Call baseline framework"""
+        """Call ablation framework"""
         try:
             start_time = time.perf_counter()
 
-            print(f"[BASELINE] Calling baseline for {sig['session_id']}")
-            response = await client.post(BASELINE_URL, json={"signals": sig}, timeout=30.0)
+            print(f"[ABLATION] Calling ablation for {sig['session_id']}")
+            response = await client.post(ABLATION_URL, json={"signals": sig}, timeout=30.0)
             response.raise_for_status()
             decision = response.json()
 
             end_time = time.perf_counter()
-            processing_time_ms = int(max(0, min(250, ((end_time - start_time) * 1000) / 10 - 80)))
+            processing_time_ms = int((end_time - start_time) * 1000)
 
-
-            
             decision_val = decision.get("decision", "unknown")
             risk_score = decision.get("risk_score", 0.0)
             enforcement = decision.get("enforcement", "ALLOW")
             factors = decision.get("factors", [])
 
-            print(f"[BASELINE] Decision for {sig['session_id']}: {decision_val} (risk={risk_score}, factors={factors})")
+            print(f"[ABLATION] Decision for {sig['session_id']}: {decision_val} (risk={risk_score}, factors={factors})")
 
             return {
-                "framework": "baseline",
+                "framework": "ablation",
                 "session_id": sig["session_id"],
                 "decision": decision_val,
                 "risk_score": risk_score,
@@ -426,80 +577,111 @@ class EnhancedSimulator:
                 "full_response": decision
             }
         except httpx.HTTPStatusError as e:
-            print(f"[BASELINE] HTTP Error for {sig['session_id']}: {e.response.status_code} - {e.response.text}")
+            print(f"[ABLATION] HTTP Error for {sig['session_id']}: {e.response.status_code} - {e.response.text}")
             return None
         except httpx.TimeoutException as e:
-            print(f"[BASELINE] Timeout for {sig['session_id']}: {e}")
+            print(f"[ABLATION] Timeout for {sig['session_id']}: {e}")
             return None
         except Exception as e:
-            print(f"[BASELINE] Unexpected error for {sig['session_id']}: {e}")
+            print(f"[ABLATION] Unexpected error for {sig['session_id']}: {e}")
+            return None
+
+    async def _call_generic_baseline(self, client, sig, url: str, tag: str):
+        """Generic caller for published baseline services (Ahmadi, Jimmy, Phani)."""
+        try:
+            start_time = time.perf_counter()
+            response = await client.post(url, json={"signals": sig}, timeout=30.0)
+            response.raise_for_status()
+            decision = response.json()
+            processing_time_ms = int((time.perf_counter() - start_time) * 1000)
+            decision_val = decision.get("decision", "unknown")
+            risk_score   = decision.get("risk_score", 0.0)
+            enforcement  = decision.get("enforcement", "ALLOW")
+            factors      = decision.get("factors", {})
+            print(f"[{tag.upper()}] {sig['session_id']}: {decision_val} (risk={risk_score:.3f})")
+            return {
+                "framework":          tag,
+                "session_id":         sig["session_id"],
+                "decision":           decision_val,
+                "risk_score":         risk_score,
+                "enforcement":        enforcement,
+                "factors":            factors,
+                "processing_time_ms": processing_time_ms,
+                "full_response":      decision,
+            }
+        except Exception as e:
+            print(f"[{tag.upper()}] Error for {sig['session_id']}: {e}")
             return None
 
     def _store_comparison_data(self, comparison_id: str, proposed_result: Optional[Dict[str, Any]] = None,
-                              baseline_result: Optional[Dict[str, Any]] = None, signal: Optional[Dict[str, Any]] = None):
-        """Store comparison data in database using validation service pattern"""
+                              baseline_result: Optional[Dict[str, Any]] = None, signal: Optional[Dict[str, Any]] = None,
+                              extra_results: Optional[list] = None):
+        """Store comparison data in database using validation service pattern.
+
+        Batches all frameworks' rows into 2 multi-row INSERTs (executemany) instead
+        of up to 8 individual round trips — each round trip to the remote DB costs
+        real network time even on an already-warm connection, and that was the
+        dominant per-sample cost once the engine-recreation bug was fixed."""
         eng = self._get_engine()
         if eng is None:
             return
 
+        all_results = [proposed_result, baseline_result] + (extra_results or [])
+        valid_results = [r for r in all_results if r and isinstance(r, dict)
+                          and r.get("framework") and r.get("decision") != "unknown"]
+        if not valid_results:
+            return
+
+        comparison_rows = [{
+            "comp_id": comparison_id,
+            "framework": r["framework"],
+            "session_id": r["session_id"],
+            "decision": r["decision"],
+            "risk_score": float(r.get("risk_score", 0.0)),
+            "enforcement": r.get("enforcement", "ALLOW"),
+            "factors": json.dumps(r.get("factors", [])),
+            "processing_time": r.get("processing_time_ms", 0)
+        } for r in valid_results]
+
+        classification_rows = []
+        if signal:
+            ground_truth = signal.get("label", "BENIGN")
+            is_malicious_actual = ground_truth.upper() != "BENIGN"
+            for r in valid_results:
+                predicted_threats = r.get("factors", []) if isinstance(r.get("factors"), list) else []
+                # Ground truth vs. the framework's actual enforcement decision
+                # (consistent across all frameworks: allow/step_up/deny).
+                has_threats_predicted = r.get("decision") in ("step_up", "deny")
+                classification_rows.append({
+                    "session_id": r["session_id"],
+                    "original_label": ground_truth,
+                    "predicted_threats": json.dumps(predicted_threats),
+                    "framework": r["framework"],
+                    "false_positive": not is_malicious_actual and has_threats_predicted,
+                    "false_negative": is_malicious_actual and not has_threats_predicted
+                })
+
         try:
             with eng.begin() as conn:
-                # Store framework comparison data
-                for result in [proposed_result, baseline_result]:
-                    if result and isinstance(result, dict) and result.get("framework") and result.get("decision") != "unknown":
-                        try:
-                            conn.execute(text("""
-                                INSERT INTO zta.framework_comparison
-                                (comparison_id, framework_type, session_id, decision, risk_score,
-                                 enforcement, factors, processing_time_ms)
-                                VALUES (:comp_id, :framework, :session_id, :decision, :risk_score,
-                                        :enforcement, :factors, :processing_time)
-                            """), {
-                                "comp_id": comparison_id,
-                                "framework": result["framework"],
-                                "session_id": result["session_id"],
-                                "decision": result["decision"],
-                                "risk_score": float(result.get("risk_score", 0.0)),
-                                "enforcement": result.get("enforcement", "ALLOW"),
-                                "factors": json.dumps(result.get("factors", [])),
-                                "processing_time": result.get("processing_time_ms", 0)
-                            })
-                            print(f"[DB] Stored {result['framework']} framework data: {result['decision']}")
-                        except Exception as e:
-                            print(f"[DB] Failed to store {result.get('framework', 'unknown')} data: {e}")
+                conn.execute(text("""
+                    INSERT INTO zta.framework_comparison
+                    (comparison_id, framework_type, session_id, decision, risk_score,
+                     enforcement, factors, processing_time_ms)
+                    VALUES (:comp_id, :framework, :session_id, :decision, :risk_score,
+                            :enforcement, :factors, :processing_time)
+                """), comparison_rows)
 
-                # Store security classification data
-                if signal:
-                    ground_truth = signal.get("label", "BENIGN")
-                    for result in [proposed_result, baseline_result]:
-                        if result and isinstance(result, dict):
-                            predicted_threats = result.get("factors", []) if isinstance(result.get("factors"), list) else []
+                if classification_rows:
+                    conn.execute(text("""
+                        INSERT INTO zta.security_classifications
+                        (session_id, original_label, predicted_threats, framework_type,
+                         false_positive, false_negative)
+                        VALUES (:session_id, :original_label, :predicted_threats, :framework,
+                                :false_positive, :false_negative)
+                    """), classification_rows)
 
-                            # Determine classification accuracy metrics
-                            is_malicious_actual = ground_truth.upper() != "BENIGN"
-                            has_threats_predicted = len(predicted_threats) > 0
-
-                            false_positive = not is_malicious_actual and has_threats_predicted
-                            false_negative = is_malicious_actual and not has_threats_predicted
-
-                            try:
-                                conn.execute(text("""
-                                    INSERT INTO zta.security_classifications
-                                    (session_id, original_label, predicted_threats, framework_type,
-                                     false_positive, false_negative)
-                                    VALUES (:session_id, :original_label, :predicted_threats, :framework,
-                                            :false_positive, :false_negative)
-                                """), {
-                                    "session_id": result["session_id"],
-                                    "original_label": ground_truth,
-                                    "predicted_threats": json.dumps(predicted_threats),
-                                    "framework": result["framework"],
-                                    "false_positive": false_positive,
-                                    "false_negative": false_negative
-                                })
-                            except Exception as e:
-                                print(f"[DB] Failed to store security classification: {e}")
-
+            for r in valid_results:
+                print(f"[DB] Stored {r['framework']} framework data: {r['decision']}")
         except Exception as e:
             print(f"[DB] Failed to store comparison data: {e}")
 
@@ -511,43 +693,48 @@ class EnhancedSimulator:
             sleep_time = SLEEP_BETWEEN
 
         # Initialize data if not already done
-        if not hasattr(self, 'cicids_rows') or not self.cicids_rows:
+        if not hasattr(self, 'cic2018_rows') or not self.cic2018_rows:
             self._load_data()
 
-        if not self.cicids_rows:
-            print("[SIM] No CICIDS data available")
+        if not self.cic2018_rows:
+            print("[SIM] No CIC-IDS2018 data available")
             return {"comparison_id": None, "total_samples": 0, "successful_comparisons": 0}
 
         print(f"[SIM] pools: wifi={len(self.wifi_pool)} tls={len(self.tls_pool)} device={len(self.dev_pool)}")
         print(f"[SIM] Starting enhanced simulation with {max_samples} samples")
-        print(f"[SIM] Proposed Framework: {VALIDATE_URL} -> {GATEWAY_URL}")
-        print(f"[SIM] Baseline Framework: {BASELINE_URL}")
+        print(f"[SIM] Proposed   : {VALIDATE_URL} -> {GATEWAY_URL}")
+        print(f"[SIM] Ablation   : {ABLATION_URL}")
+        print(f"[SIM] Ahmadi2025 : {AHMADI_URL}")
+        print(f"[SIM] Jimmy2025  : {JIMMY_URL}")
+        print(f"[SIM] Phani2025  : {PHANI_URL}")
 
         comparison_id = f"comp-{int(time.time())}"
         sent = 0
         successful_comparisons = 0
 
         async with httpx.AsyncClient(timeout=60.0) as client:
-            for row in self.cicids_rows:
+            for row in self.cic2018_rows:
                 if sent >= max_samples:
                     break
 
                 try:
-                    # Select data sources (matching original logic)
-                    wifi_row = random.choice(self.wifi_pool) if self.wifi_pool else None
-                    tls_row = self._pick_tls_row(self.tls_pool, bad_only=False) if self.tls_pool else None
-                    dev_row = random.choice(self.dev_pool) if self.dev_pool else None
-
-                    # Create base signal
-                    sig = self._mk_signals(row, wifi_row, tls_row, dev_row)
-
-                    # Assign STRIDE bucket
+                    # Assign STRIDE bucket first — WiFi selection below depends on
+                    # whether this session is a spoof scenario (forces a foreign AP)
+                    # or normal traffic (weighted toward the home cluster).
                     r = random.random()
                     bucket = "spoof"
                     for edge, k in self.stride_buckets:
                         if r <= edge:
                             bucket = k
                             break
+
+                    # Select data sources (matching original logic)
+                    wifi_row = self._pick_wifi_row(force_foreign=(bucket == "spoof"))
+                    tls_row = self._pick_tls_row(self.tls_pool, bad_only=False) if self.tls_pool else None
+                    dev_row = random.choice(self.dev_pool) if self.dev_pool else None
+
+                    # Create base signal
+                    sig = self._mk_signals(row, wifi_row, tls_row, dev_row)
 
                     # Apply STRIDE scenario
                     self._apply_stride_scenario(sig, bucket)
@@ -557,45 +744,45 @@ class EnhancedSimulator:
 
                     print(f"[SIM] Processing sample {sent+1}/{max_samples} - {sig['session_id']} (bucket: {bucket})")
 
-                    # Call both frameworks
-                    proposed_task = self._call_proposed_framework(client, sig)
-                    baseline_task = self._call_baseline_framework(client, sig)
-
+                    # Call all frameworks concurrently
+                    # NOTE: Jimmy (2025) CAMFA excluded from active comparison — its source
+                    # paper publishes no risk-scoring formula, so re-implementation required
+                    # reconstruction rather than reproduction. Retained as related work in
+                    # the literature review only. Service (jimmy2025) stays deployed but idle.
                     results = await asyncio.gather(
-                        proposed_task, baseline_task, return_exceptions=True
+                        self._call_proposed_framework(client, sig),
+                        self._call_baseline_framework(client, sig),
+                        self._call_generic_baseline(client, sig, AHMADI_URL, "ahmadi2025"),
+                        self._call_generic_baseline(client, sig, PHANI_URL,  "phani2025"),
+                        return_exceptions=True
                     )
 
                     proposed_result: Optional[Dict[str, Any]] = None
                     baseline_result: Optional[Dict[str, Any]] = None
+                    extra_results: list = []
 
                     # Handle exceptions and type-safe assignment
-                    if isinstance(results[0], Exception):
-                        print(f"[SIM] Proposed framework error: {results[0]}")
-                    elif isinstance(results[0], dict):
-                        proposed_result = results[0]
+                    labels = ["proposed", "ablation", "ahmadi2025", "phani2025"]
+                    for i, (label, res) in enumerate(zip(labels, results)):
+                        if isinstance(res, Exception):
+                            print(f"[SIM] {label} error: {res}")
+                        elif isinstance(res, dict):
+                            if i == 0:
+                                proposed_result = res
+                            elif i == 1:
+                                baseline_result = res
+                            else:
+                                extra_results.append(res)
 
-                    if isinstance(results[1], Exception):
-                        print(f"[SIM] Baseline framework error: {results[1]}")
-                    elif isinstance(results[1], dict):
-                        baseline_result = results[1]
-
-                    # Store results if we have at least one successful result
-                    if proposed_result or baseline_result:
-                        self._store_comparison_data(comparison_id, proposed_result, baseline_result, sig)
+                    any_result = proposed_result or baseline_result or extra_results
+                    if any_result:
+                        self._store_comparison_data(comparison_id, proposed_result, baseline_result, sig, extra_results)
                         successful_comparisons += 1
-
-                        # Print results
-                        if proposed_result and baseline_result and isinstance(proposed_result, dict) and isinstance(baseline_result, dict):
-                            print(f"[SIM]   Proposed: {proposed_result.get('decision', 'unknown')} (risk: {proposed_result.get('risk_score', 0.0):.3f}, {proposed_result.get('processing_time_ms', 0)}ms)")
-                            print(f"[SIM]   Baseline: {baseline_result.get('decision', 'unknown')} (risk: {baseline_result.get('risk_score', 0.0):.3f}, {baseline_result.get('processing_time_ms', 0)}ms)")
-                        elif proposed_result and isinstance(proposed_result, dict):
-                            print(f"[SIM]   Proposed: {proposed_result.get('decision', 'unknown')} (risk: {proposed_result.get('risk_score', 0.0):.3f}, {proposed_result.get('processing_time_ms', 0)}ms)")
-                            print("[SIM]   Baseline: FAILED")
-                        elif baseline_result and isinstance(baseline_result, dict):
-                            print("[SIM]   Proposed: FAILED")
-                            print(f"[SIM]   Baseline: {baseline_result.get('decision', 'unknown')} (risk: {baseline_result.get('risk_score', 0.0):.3f}, {baseline_result.get('processing_time_ms', 0)}ms)")
+                        for label, res in zip(labels, results):
+                            if isinstance(res, dict):
+                                print(f"[SIM]   {label:12s}: {res.get('decision','?'):8s} risk={res.get('risk_score',0):.3f}")
                     else:
-                        print(f"[SIM]   Both frameworks failed for {sig.get('session_id', 'unknown')}")
+                        print(f"[SIM]   All frameworks failed for {sig.get('session_id', 'unknown')}")
 
                     # Sleep between requests
                     await asyncio.sleep(sleep_time)
