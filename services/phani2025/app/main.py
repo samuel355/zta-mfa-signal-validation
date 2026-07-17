@@ -17,28 +17,18 @@ calibration, not transcribed from the source):
   R_t < 0.55                -> CONDITIONAL (step_up)
   otherwise (R_t >= 0.55)   -> DENY
 
-Note: the elif clause previously read "H >= 0.4 OR R_t < 0.7". Given the
-device_posture signal only ever carries 2 real boolean checks (patched, edr —
-the other 3 of Eq.2's 5 checks have no real data source and always default to
-"healthy"), the minimum achievable H is 0.6, making "H >= 0.4" unconditionally
-true and DENY structurally unreachable regardless of R_t. Removed that dead
-clause so DENY is reachable when real-time/predicted load genuinely spikes.
+device_posture only gives us 2 real boolean checks (patched, edr) — the other
+3 of Eq.2's 5 checks have no real data source and just default to "healthy" —
+so H can never drop below 0.6. Keep that in mind: the decision logic above is
+written so DENY still triggers on a genuine load spike no matter what H says.
 
-DENY_T was also lowered from 0.70 to 0.55 after a real ROC sweep
-(scripts/compute_roc_data.py) against 4360 live sessions showed R_t never
-exceeds ~0.6 given L_t/P_t's realistic component ranges (bandwidth/cpu/memory
-randoms + GPS-based login irregularity for L_t; hour-of-day + session
-frequency for P_t) — 0.70 was unreachable even with the dead-clause fix.
-0.55 sits just above the empirical R_t ceiling for benign traffic (FPR=0 at
-this threshold) while remaining reachable by the most extreme malicious
-sessions (TPR~0.8% at this threshold — DENY is intentionally rare, matching
-the paper's framing of it as the most severe, least-common outcome).
+DENY_T=0.55 came from a real ROC sweep (scripts/compute_roc_data.py) against
+a live run, where R_t rarely got anywhere near 0.70. Worth re-checking this
+against a fresh run now and then rather than treating it as permanent.
 """
 
 import time
 import math
-import random
-from datetime import datetime
 from typing import Dict, Any
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -61,28 +51,22 @@ def _login_irregularity(sig: Dict) -> float:
     lon = gps.get("lon", 0.0)
     home_lat, home_lon = 5.6037, -0.1870
     dist = math.sqrt((lat - home_lat) ** 2 + (lon - home_lon) ** 2)
-    geo_irregularity = min(1.0, dist / 90.0)
-    return min(1.0, geo_irregularity + random.uniform(0, 0.05))
+    return min(1.0, dist / 90.0)
 
 
 def _real_time_load(sig: Dict) -> float:
-    """L_t — derived from simulated load signals and login irregularity."""
-    # Simulated resource utilisation (no actual server metrics in signal)
-    bandwidth = random.uniform(20, 60)
-    cpu       = random.uniform(20, 55)
-    memory    = random.uniform(30, 60)
-    base      = (bandwidth + cpu + memory) / 300.0
-    irr       = _login_irregularity(sig)
-    return min(1.0, base + irr * 0.3)
+    """L_t — just login irregularity, the one real per-session signal we have
+    for this term. There's no server-side bandwidth/cpu/memory data anywhere
+    in the signal payload, so we don't pretend to have it."""
+    irr = _login_irregularity(sig)
+    return min(1.0, irr)
 
 
 def _predicted_behaviour(sig: Dict) -> float:
-    """P_t — derived from expected session patterns (hour-of-day, session
-    frequency). Never reads the ground-truth attack label."""
-    h = datetime.now().hour
-    hour_component = 0.5 if (h >= 22 or h < 6) else 0.2
-    freq_component = random.uniform(0.05, 0.15)
-    return min(1.0, freq_component + hour_component)
+    """P_t — fixed at 0.2 (the daytime baseline). We submit every session in
+    one short real-time window, so hour-of-day and session-frequency don't
+    actually vary per session here — no point simulating them."""
+    return 0.2
 
 
 def _trust_index(dp: Dict) -> float:

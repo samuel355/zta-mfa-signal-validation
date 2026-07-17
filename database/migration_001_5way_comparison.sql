@@ -1,5 +1,4 @@
 -- Migration: Expand framework_type CHECK constraints for 5-way comparison
--- Run this once in Supabase SQL editor (Dashboard > SQL Editor)
 -- Adds: ablation, ahmadi2025, jimmy2025, phani2025 alongside existing 'proposed'
 
 SET search_path TO zta, public;

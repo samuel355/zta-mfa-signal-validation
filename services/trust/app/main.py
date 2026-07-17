@@ -10,8 +10,7 @@ api = FastAPI(title="Trust Service", version="0.5")
 
 # NOTE: all risk-scoring thresholds and weights (ALLOW_T, DENY_T, SIEM_HIGH_BUMP,
 # SIEM_MED_BUMP, TRUST_BASE_GAIN, TRUST_FALLBACK_OBSERVED, VALIDATION_CONFIDENCE_THRESHOLD)
-# live in decision_engine.py's ProposedThesisConfig — this module previously
-# duplicated them as dead constants that were never referenced.
+# live in decision_engine.py's ProposedThesisConfig, not here.
 
 _engine: Optional[Engine] = None
 
@@ -59,6 +58,7 @@ class ScorePayload(BaseModel):
     weights: Dict[str, float]
     reasons: list[str] = []
     siem: Dict[str, int] = {}
+    quality_confidence: Optional[float] = None
 
 @api.on_event("startup")
 def _startup():
@@ -102,7 +102,8 @@ def score(payload: ScorePayload, background_tasks: BackgroundTasks):
         'vector': payload.vector,
         'weights': payload.weights or {},
         'reasons': payload.reasons or [],
-        'siem': payload.siem or {"high": 0, "medium": 0}
+        'siem': payload.siem or {"high": 0, "medium": 0},
+        'quality_confidence': payload.quality_confidence,
     }
 
     # Use the thesis-compliant proposed engine
@@ -153,8 +154,6 @@ def score(payload: ScorePayload, background_tasks: BackgroundTasks):
         "is_benign_traffic": is_benign_traffic,
         "signal_quality": validation_metrics.get("signal_coverage", sum(weights.values()) if weights else 0),
         "validation_confidence": confidence_multiplier,
-        "enrichment_quality": validation_metrics.get("enrichment_quality_score", 0.8),
-        "context_mismatches": details.get("context_mismatches", 0)
     })
     persistence = {"ok": "scheduled"}
 

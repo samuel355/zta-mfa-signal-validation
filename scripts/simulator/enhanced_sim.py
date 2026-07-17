@@ -4,7 +4,7 @@ Enhanced Data Insertion Simulator
 Based on original sim.py but adds baseline framework comparison
 Uses proper STRIDE classification and full data complexity
 """
-import os, sys, csv, json, random, time
+import os, sys, csv, json, random, time, uuid
 from typing import Dict, Any, Optional
 import httpx
 import asyncio
@@ -194,11 +194,10 @@ class EnhancedSimulator:
                             benign.append(x)
                     else:
                         attacks.append(x)
-                # Reserve explicit slots for benign rows instead of just concatenating
-                # attacks+benign and slicing to MAX_PER_FILE — if attacks alone exceed
-                # MAX_PER_FILE (common for CIC-IDS2018 attack-window files), benign rows
-                # were silently dropped entirely, leaving no genuine negative-class
-                # ground truth for FPR/TNR measurement.
+                # Reserve slots for benign rows explicitly — attacks alone
+                # usually blow past MAX_PER_FILE in these CIC-IDS2018 files,
+                # so we need to guarantee some negative-class data survives
+                # for FPR/TNR to mean anything.
                 n_benign_slots = int(MAX_PER_FILE * 0.30)
                 n_attack_slots = MAX_PER_FILE - n_benign_slots
                 rows.extend(attacks[:n_attack_slots] + benign[:n_benign_slots])
@@ -405,7 +404,11 @@ class EnhancedSimulator:
     def _mk_signals(self, row, wifi_row, tls_row, dev_row) -> Dict[str, Any]:
         """Create signal from data sources (matching original logic)"""
         sig = {}
-        sig["session_id"] = f"sess-{random.randrange(100000, 999999)}"
+        # uuid4 so collisions are basically impossible — everything downstream
+        # joins on session_id (per-STRIDE breakdown, McNemar's test), and a
+        # collision would quietly merge two unrelated sessions into one
+        # paired comparison.
+        sig["session_id"] = f"sess-{uuid.uuid4().hex[:12]}"
 
         # Label from CIC-IDS2018
         lab = row.get("Label") or row.get(" Label") or row.get("LABEL")
@@ -435,8 +438,6 @@ class EnhancedSimulator:
                 patched_raw = str(dev_row.get("patched", "true")).strip().lower()
                 patched = True if patched_raw not in {"true", "false"} else (patched_raw == "true")
                 # edr status is present in device_posture.csv ("ok"/"missing"/"outdated"/"none")
-                # but was previously dropped here, silently forcing every downstream
-                # dp.get("edr", True) check to its default (always-healthy) value.
                 edr_raw = str(dev_row.get("edr", "ok")).strip().lower()
                 edr_ok = edr_raw == "ok"
                 sig["device_posture"] = {"device_id": str(dev_id), "patched": patched, "edr": edr_ok}
@@ -620,8 +621,8 @@ class EnhancedSimulator:
 
         Batches all frameworks' rows into 2 multi-row INSERTs (executemany) instead
         of up to 8 individual round trips — each round trip to the remote DB costs
-        real network time even on an already-warm connection, and that was the
-        dominant per-sample cost once the engine-recreation bug was fixed."""
+        real network time even on an already-warm connection, so batching keeps
+        per-sample DB overhead low."""
         eng = self._get_engine()
         if eng is None:
             return

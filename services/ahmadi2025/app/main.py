@@ -10,8 +10,6 @@ Equation 2 (Page 5): R = w1 * A + w2 * C
 
 import time
 import math
-import random
-from datetime import datetime
 from typing import Dict, Any, Optional
 import numpy as np
 from fastapi import FastAPI
@@ -28,27 +26,16 @@ STEPUP_T  = 0.3
 # Fixed normal-behaviour profile fitted on representative benign sessions.
 # Feature vector: [device_risk, location_risk, time_risk, login_freq, resource_count, session_dur]
 #
-# device_risk/location_risk: empirically measured (mean, variance) from 333 real
-# benign CIC-IDS2018 sessions run through this service's own _device_risk/
-# _location_risk functions (scripts/simulator/calibrate_ahmadi.py), AFTER fixing
-# a WiFi-pool sampling bug where benign sessions drew a WiFi AP uniformly from
-# a pool where 8/10 entries are scattered across different continents — giving
-# benign traffic a location_risk almost as scattered as genuinely spoofed
-# sessions. Once fixed (benign traffic now weighted 85% toward the user's home
-# AP cluster), location_risk's true benign baseline dropped from a first-pass
-# measurement of mean=0.38 to mean=0.077. The original hardcoded placeholder
-# mean [0.10, 0.15] was miscalibrated low enough that a genuinely benign
-# session was further from "normal" than a moderately-spoofed one (A=0.160
-# clean vs A=0.084 spoofed) — a backwards anomaly signal; this recalibration
-# (plus the WiFi fix) corrects that.
+# device_risk/location_risk: mean and variance measured from 333 real benign
+# CIC-IDS2018 sessions run through our own _device_risk/_location_risk
+# (scripts/simulator/calibrate_ahmadi.py). Benign traffic is weighted 85%
+# toward the user's home Wi-Fi AP cluster so location_risk reflects what
+# genuine benign geographic behaviour actually looks like.
 #
-# time_risk: analytically derived from _time_risk()'s own day/night uniform
-# distributions (16/24 of hours ~ U(0.05,0.15), 8/24 ~ U(0.50,0.70)) via the
-# law of total variance, rather than the single-run empirical sample
-# (mean~0.10, var~0.0009 in both calibration runs) — that sample only covers
-# whatever hour the calibration script happened to run at, and its near-zero
-# variance would make the Mahalanobis distance pathologically oversensitive to
-# time-of-day for any session scored at a different hour.
+# time_risk: _time_risk() just returns a fixed 0.10 — we only ever run this
+# simulator in short bursts, so there's no real per-session time-of-day signal
+# to work with (see that function's docstring). _MEAN[2]/_COV[2] line up with
+# that constant and add a fixed, non-discriminating offset to the distance.
 _MEAN = np.array([0.2709, 0.0771, 0.2667, 1.5, 2.0, 320.0])
 _COV  = np.diag([0.0761, 0.0316, 0.0572, 1.0, 2.0, 8000.0])
 _COV_INV = np.linalg.inv(_COV)
@@ -64,7 +51,7 @@ def _device_risk(dp: Dict) -> float:
         risk += 0.20
     if dp.get("compliance_score", 100) < 70:
         risk += 0.20
-    return min(1.0, risk + random.uniform(0, 0.05))
+    return min(1.0, risk)
 
 
 def _location_risk(gps: Dict, ip_geo: Dict) -> float:
@@ -73,14 +60,15 @@ def _location_risk(gps: Dict, ip_geo: Dict) -> float:
     # Mahalanobis-style deviation from a known "home" region (KNUST campus: ~5.6N, 0.2W)
     home_lat, home_lon = 5.6037, -0.1870
     dist = math.sqrt((lat - home_lat) ** 2 + (lon - home_lon) ** 2)
-    return min(1.0, dist / 90.0 + random.uniform(0, 0.05))
+    return min(1.0, dist / 90.0)
 
 
 def _time_risk() -> float:
-    h = datetime.now().hour
-    if 6 <= h < 22:
-        return random.uniform(0.05, 0.15)
-    return random.uniform(0.50, 0.70)
+    """Fixed at 0.10, the daytime-baseline midpoint. We run every session in
+    one short real-time window, so there's no genuine per-session time-of-day
+    signal here — every session just gets the same value rather than us
+    faking a timestamp to look varied."""
+    return 0.10
 
 
 def _mahalanobis_anomaly(fv: np.ndarray) -> float:

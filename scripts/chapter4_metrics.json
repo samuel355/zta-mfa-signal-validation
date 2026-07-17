@@ -1,327 +1,323 @@
 {
   "latency": {
     "proposed": {
-      "n": 454,
-      "avg_ms": 520.8,
-      "median_ms": 47.0,
-      "p95_ms": 2142.3,
-      "p99_ms": 2824.7
+      "n": 3921,
+      "avg_ms": 565.0,
+      "median_ms": 71,
+      "p95_ms": 2287.0,
+      "p99_ms": 2801.0
     },
     "ablation": {
-      "n": 2049,
-      "avg_ms": 15.0,
-      "median_ms": 14,
-      "p95_ms": 19.6,
-      "p99_ms": 30.5
+      "n": 5516,
+      "avg_ms": 22.1,
+      "median_ms": 16.0,
+      "p95_ms": 42.2,
+      "p99_ms": 105.9
     },
     "ahmadi2025": {
-      "n": 2049,
-      "avg_ms": 13.8,
-      "median_ms": 13,
-      "p95_ms": 18.0,
-      "p99_ms": 29.5
+      "n": 5516,
+      "avg_ms": 19.8,
+      "median_ms": 15.0,
+      "p95_ms": 39.0,
+      "p99_ms": 95.9
     },
     "phani2025": {
-      "n": 2049,
-      "avg_ms": 13.2,
-      "median_ms": 13,
-      "p95_ms": 18.0,
-      "p99_ms": 27.0
+      "n": 5516,
+      "avg_ms": 19.3,
+      "median_ms": 14.0,
+      "p95_ms": 38.0,
+      "p99_ms": 101.6
     }
   },
   "decisions": {
     "proposed": {
-      "total": 2054,
-      "allow": 330,
-      "step_up": 1454,
-      "deny": 270,
-      "step_up_rate_pct": 70.79
+      "total": 5521,
+      "allow": 405,
+      "step_up": 4422,
+      "deny": 694,
+      "step_up_rate_pct": 80.09
     },
     "ablation": {
-      "total": 2054,
-      "allow": 1016,
-      "step_up": 875,
-      "deny": 163,
-      "step_up_rate_pct": 42.6
+      "total": 5521,
+      "allow": 3759,
+      "step_up": 1762,
+      "deny": 0,
+      "step_up_rate_pct": 31.91
     },
     "ahmadi2025": {
-      "total": 2054,
-      "allow": 1622,
-      "step_up": 224,
-      "deny": 208,
-      "step_up_rate_pct": 10.91
+      "total": 5521,
+      "allow": 4405,
+      "step_up": 563,
+      "deny": 553,
+      "step_up_rate_pct": 10.2
     },
     "phani2025": {
-      "total": 2054,
-      "allow": 1933,
-      "step_up": 104,
-      "deny": 17,
-      "step_up_rate_pct": 5.06
+      "total": 5521,
+      "allow": 4962,
+      "step_up": 20,
+      "deny": 539,
+      "step_up_rate_pct": 0.36
     }
   },
   "security_accuracy": {
     "proposed": {
-      "n": 2054,
-      "tp": 1721,
-      "tn": 102,
-      "fp": 3,
-      "fn": 228,
-      "tpr": 0.883,
-      "fpr": 0.0286,
-      "precision": 0.9983,
-      "f1": 0.9371
+      "n": 5521,
+      "tp": 5116,
+      "tn": 349,
+      "fp": 0,
+      "fn": 56,
+      "tpr": 0.9892,
+      "fpr": 0.0,
+      "precision": 1.0,
+      "f1": 0.9946
     },
     "ablation": {
-      "n": 2054,
-      "tp": 1016,
-      "tn": 83,
-      "fp": 22,
-      "fn": 933,
-      "tpr": 0.5213,
-      "fpr": 0.2095,
-      "precision": 0.9788,
-      "f1": 0.6803
+      "n": 5521,
+      "tp": 1762,
+      "tn": 349,
+      "fp": 0,
+      "fn": 3410,
+      "tpr": 0.3407,
+      "fpr": 0.0,
+      "precision": 1.0,
+      "f1": 0.5082
     },
     "ahmadi2025": {
-      "n": 2054,
-      "tp": 426,
-      "tn": 99,
-      "fp": 6,
-      "fn": 1523,
-      "tpr": 0.2186,
-      "fpr": 0.0571,
-      "precision": 0.9861,
-      "f1": 0.3578
+      "n": 5521,
+      "tp": 1084,
+      "tn": 317,
+      "fp": 32,
+      "fn": 4088,
+      "tpr": 0.2096,
+      "fpr": 0.0917,
+      "precision": 0.9713,
+      "f1": 0.3448
     },
     "phani2025": {
-      "n": 2054,
-      "tp": 119,
-      "tn": 103,
-      "fp": 2,
-      "fn": 1830,
-      "tpr": 0.0611,
-      "fpr": 0.019,
-      "precision": 0.9835,
-      "f1": 0.115
+      "n": 5521,
+      "tp": 554,
+      "tn": 344,
+      "fp": 5,
+      "fn": 4618,
+      "tpr": 0.1071,
+      "fpr": 0.0143,
+      "precision": 0.9911,
+      "f1": 0.1933
     }
   },
   "security_accuracy_by_stride": {
     "proposed": {
-      "DoS": {
-        "n": 441,
-        "detected": 441,
-        "tpr": 1.0
-      },
-      "InformationDisclosure": {
-        "n": 332,
-        "detected": 332,
+      "Repudiation": {
+        "n": 401,
+        "detected": 401,
         "tpr": 1.0
       },
       "Spoofing": {
-        "n": 383,
-        "detected": 383,
+        "n": 1060,
+        "detected": 1060,
         "tpr": 1.0
       },
       "Tampering": {
-        "n": 234,
-        "detected": 120,
-        "tpr": 0.5128
-      },
-      "EoP": {
-        "n": 362,
-        "detected": 362,
+        "n": 638,
+        "detected": 638,
         "tpr": 1.0
       },
-      "Repudiation": {
-        "n": 167,
-        "detected": 75,
-        "tpr": 0.4491
+      "EoP": {
+        "n": 894,
+        "detected": 894,
+        "tpr": 1.0
+      },
+      "InformationDisclosure": {
+        "n": 845,
+        "detected": 845,
+        "tpr": 1.0
+      },
+      "DoS": {
+        "n": 1246,
+        "detected": 1246,
+        "tpr": 1.0
       },
       "Other": {
-        "n": 34,
-        "detected": 12,
-        "tpr": 0.3529
+        "n": 88,
+        "detected": 32,
+        "tpr": 0.3636
       }
     },
     "ablation": {
-      "DoS": {
-        "n": 441,
-        "detected": 312,
-        "tpr": 0.7075
-      },
-      "InformationDisclosure": {
-        "n": 332,
-        "detected": 168,
-        "tpr": 0.506
+      "Repudiation": {
+        "n": 401,
+        "detected": 0,
+        "tpr": 0.0
       },
       "Spoofing": {
-        "n": 383,
-        "detected": 194,
-        "tpr": 0.5065
+        "n": 1060,
+        "detected": 268,
+        "tpr": 0.2528
       },
       "Tampering": {
-        "n": 234,
-        "detected": 105,
-        "tpr": 0.4487
+        "n": 638,
+        "detected": 0,
+        "tpr": 0.0
       },
       "EoP": {
-        "n": 362,
-        "detected": 155,
-        "tpr": 0.4282
+        "n": 894,
+        "detected": 36,
+        "tpr": 0.0403
       },
-      "Repudiation": {
-        "n": 167,
-        "detected": 68,
-        "tpr": 0.4072
+      "InformationDisclosure": {
+        "n": 845,
+        "detected": 212,
+        "tpr": 0.2509
+      },
+      "DoS": {
+        "n": 1246,
+        "detected": 1246,
+        "tpr": 1.0
       },
       "Other": {
-        "n": 34,
-        "detected": 16,
-        "tpr": 0.4706
+        "n": 88,
+        "detected": 0,
+        "tpr": 0.0
       }
     },
     "ahmadi2025": {
-      "DoS": {
-        "n": 441,
-        "detected": 42,
-        "tpr": 0.0952
-      },
-      "InformationDisclosure": {
-        "n": 332,
-        "detected": 35,
-        "tpr": 0.1054
-      },
-      "Spoofing": {
-        "n": 383,
-        "detected": 277,
-        "tpr": 0.7232
-      },
-      "Tampering": {
-        "n": 234,
-        "detected": 19,
-        "tpr": 0.0812
-      },
-      "EoP": {
-        "n": 362,
-        "detected": 38,
-        "tpr": 0.105
-      },
       "Repudiation": {
-        "n": 167,
-        "detected": 15,
+        "n": 401,
+        "detected": 36,
         "tpr": 0.0898
       },
+      "Spoofing": {
+        "n": 1060,
+        "detected": 738,
+        "tpr": 0.6962
+      },
+      "Tampering": {
+        "n": 638,
+        "detected": 59,
+        "tpr": 0.0925
+      },
+      "EoP": {
+        "n": 894,
+        "detected": 70,
+        "tpr": 0.0783
+      },
+      "InformationDisclosure": {
+        "n": 845,
+        "detected": 68,
+        "tpr": 0.0805
+      },
+      "DoS": {
+        "n": 1246,
+        "detected": 106,
+        "tpr": 0.0851
+      },
       "Other": {
-        "n": 34,
-        "detected": 1,
-        "tpr": 0.0294
+        "n": 88,
+        "detected": 7,
+        "tpr": 0.0795
       }
     },
     "phani2025": {
-      "DoS": {
-        "n": 441,
-        "detected": 6,
-        "tpr": 0.0136
-      },
-      "InformationDisclosure": {
-        "n": 332,
-        "detected": 7,
-        "tpr": 0.0211
+      "Repudiation": {
+        "n": 401,
+        "detected": 8,
+        "tpr": 0.02
       },
       "Spoofing": {
-        "n": 383,
-        "detected": 92,
-        "tpr": 0.2402
+        "n": 1060,
+        "detected": 432,
+        "tpr": 0.4075
       },
       "Tampering": {
-        "n": 234,
-        "detected": 5,
-        "tpr": 0.0214
+        "n": 638,
+        "detected": 22,
+        "tpr": 0.0345
       },
       "EoP": {
-        "n": 362,
-        "detected": 7,
-        "tpr": 0.0193
+        "n": 894,
+        "detected": 25,
+        "tpr": 0.028
       },
-      "Repudiation": {
-        "n": 167,
-        "detected": 2,
-        "tpr": 0.012
+      "InformationDisclosure": {
+        "n": 845,
+        "detected": 22,
+        "tpr": 0.026
+      },
+      "DoS": {
+        "n": 1246,
+        "detected": 39,
+        "tpr": 0.0313
       },
       "Other": {
-        "n": 34,
-        "detected": 0,
-        "tpr": 0.0
+        "n": 88,
+        "detected": 6,
+        "tpr": 0.0682
       }
     }
   },
   "mcnemar_significance": {
     "ablation": {
-      "n_paired_sessions": 2052,
-      "proposed_correct_baseline_wrong": 829,
-      "proposed_wrong_baseline_correct": 106,
-      "both_correct": 992,
-      "both_wrong": 125,
-      "mcnemar_chi2": 557.523,
+      "n_paired_sessions": 5521,
+      "proposed_correct_baseline_wrong": 3354,
+      "proposed_wrong_baseline_correct": 0,
+      "both_correct": 2111,
+      "both_wrong": 56,
+      "mcnemar_chi2": 3352.0003,
       "p_value": 0.0,
       "significant_at_0.05": true
     },
     "ahmadi2025": {
-      "n_paired_sessions": 2052,
-      "proposed_correct_baseline_wrong": 1314,
-      "proposed_wrong_baseline_correct": 17,
-      "both_correct": 507,
-      "both_wrong": 214,
-      "mcnemar_chi2": 1261.9204,
+      "n_paired_sessions": 5521,
+      "proposed_correct_baseline_wrong": 4069,
+      "proposed_wrong_baseline_correct": 5,
+      "both_correct": 1396,
+      "both_wrong": 51,
+      "mcnemar_chi2": 4052.0297,
       "p_value": 0.0,
       "significant_at_0.05": true
     },
     "phani2025": {
-      "n_paired_sessions": 2052,
-      "proposed_correct_baseline_wrong": 1605,
-      "proposed_wrong_baseline_correct": 6,
-      "both_correct": 216,
-      "both_wrong": 225,
-      "mcnemar_chi2": 1585.1049,
+      "n_paired_sessions": 5521,
+      "proposed_correct_baseline_wrong": 4571,
+      "proposed_wrong_baseline_correct": 4,
+      "both_correct": 894,
+      "both_wrong": 52,
+      "mcnemar_chi2": 4557.0177,
       "p_value": 0.0,
       "significant_at_0.05": true
     }
   },
   "stride_alert_distribution": {
-    "DoS": 1324,
-    "EoP": 949,
-    "InformationDisclosure": 962,
-    "Repudiation": 486,
-    "Spoofing": 1667,
-    "Tampering": 5132
+    "DoS": 675,
+    "EoP": 484,
+    "InformationDisclosure": 446,
+    "Repudiation": 220,
+    "Spoofing": 846,
+    "Tampering": 2488
   },
   "stride_severity_distribution": {
-    "InformationDisclosure": {
-      "high": 11,
-      "low": 686,
-      "medium": 265
-    },
     "EoP": {
-      "medium": 75,
-      "low": 874
+      "medium": 477,
+      "high": 7
     },
     "DoS": {
-      "medium": 1254,
-      "high": 70
+      "medium": 675
     },
     "Tampering": {
-      "high": 1449,
-      "medium": 2651,
-      "low": 1032
+      "high": 694,
+      "medium": 1257,
+      "low": 537
     },
-    "Repudiation": {
-      "medium": 19,
-      "low": 467
+    "InformationDisclosure": {
+      "low": 340,
+      "medium": 106
     },
     "Spoofing": {
-      "medium": 743,
-      "low": 898,
-      "high": 26
+      "medium": 219,
+      "low": 627
+    },
+    "Repudiation": {
+      "low": 220
     }
   },
   "network_conditions": {

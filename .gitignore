@@ -143,10 +143,12 @@ private/
 # only the small filtered rba_sample.csv above is tracked.
 datasets/
 
-# Thesis manuscript itself — kept local-only. This is a public repo; the
-# code, figures, and reference material documenting real results are fine
-# to share, but the in-progress unpublished manuscript is not.
+# Thesis manuscript, journal manuscript, and defense slides — kept
+# local-only. This is a public repo; the code, figures, and reference
+# material documenting real results are fine to share, but the in-progress
+# unpublished manuscript and personal defense materials are not.
 updated/*.docx
+updated/*.pptx
 
 
 # Documentation build
@@ -189,5 +191,4 @@ yarn-error.log*
 
 # Research/thesis specific (archived)
 *thesis*.py.old
-*THESIS*
 thesis_*.log

@@ -234,6 +234,7 @@ def decision(payload: ValidateAndDecide, background_tasks: BackgroundTasks):
     vector    = validated.get("vector", {}) or {}
     weights   = {k: float(v) for k, v in (validated.get("weights") or {}).items()}
     reasons   = validated.get("reasons") or []
+    quality_confidence = validated.get("quality_confidence")
 
     session_id = (
         vector.get("session_id")
@@ -258,6 +259,7 @@ def decision(payload: ValidateAndDecide, background_tasks: BackgroundTasks):
         "weights": weights,
         "reasons": reasons,
         "siem":    {"high": siem_counts["high"], "medium": siem_counts["medium"]},
+        "quality_confidence": quality_confidence,
     }
     # ---- Trust service call ----
     try:

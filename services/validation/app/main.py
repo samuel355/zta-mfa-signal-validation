@@ -123,23 +123,50 @@ def cross_checks(enr: Dict[str, Any]) -> dict:
     dist = (enr.get("checks") or {}).get("ip_wifi_distance_km")
     return {"ok": True, "gps_wifi_far": bool(isinstance(dist, (int,float)) and dist > 50.0)}
 
-def compute_weights(signals: Dict[str, Any], q: dict, x: dict, e: dict) -> Dict[str, float]:
+# The three penalty knobs behind the Section 3.5.2 sensitivity analysis.
+# Env-configurable (same pattern as TRUST_BASE_GAIN/SIEM_HIGH_BUMP over in
+# trust/app/decision_engine.py) so a sweep script can vary each one on its own.
+MISSING_SIGNAL_PENALTY = float(os.getenv("MISSING_SIGNAL_PENALTY", "0.3"))
+GEO_MISMATCH_PENALTY   = float(os.getenv("GEO_MISMATCH_PENALTY", "0.5"))
+CRIT_TLS_PENALTY       = float(os.getenv("CRIT_TLS_PENALTY", "0.2"))
+
+def compute_weights(signals: Dict[str, Any], q: dict, x: dict, e: dict) -> tuple[Dict[str, float], float]:
+    """Returns (normalized per-signal weights, quality_confidence).
+
+    The normalized weights always sum to 1.0, which is handy for seeing each
+    signal's relative share of trust, but it can't tell you how badly any one
+    of them got penalized — two very different sessions can normalize to the
+    same distribution.
+
+    quality_confidence is the average of the penalty multipliers *before*
+    normalization, so it's what actually carries the penalty severity forward.
+    No penalties at all -> 1.0; everything discounted -> low. This is the
+    value trust/app/decision_engine.py's confidence calc reads directly (see
+    _assess_validation_quality), which is what makes MISSING_SIGNAL_PENALTY,
+    GEO_MISMATCH_PENALTY, and CRIT_TLS_PENALTY actually matter downstream.
+    """
     present = [k for k in ("ip_geo","gps","wifi_bssid","device_posture","tls_fp") if k in signals]
-    if not present: return {}
+    if not present: return {}, 0.0
     base = {k: 1.0 for k in present}
     for k in q.get("missing", []):
-        if k in base: base[k] *= 0.3
+        if k in base: base[k] *= MISSING_SIGNAL_PENALTY
     if x.get("gps_wifi_far"):
         for k in ("gps","wifi_bssid"):
-            if k in base: base[k] *= 0.5
+            if k in base: base[k] *= GEO_MISMATCH_PENALTY
     if isinstance((e.get("tls") or {}).get("tag"), str) and ((e["tls"]["tag"] or "").strip().lower() in CRIT_TLS):
-        if "tls_fp" in base: base["tls_fp"] *= 0.2
+        if "tls_fp" in base: base["tls_fp"] *= CRIT_TLS_PENALTY
+    quality_confidence = sum(base.values()) / len(base)
     s = sum(base.values())
-    return {k: v/s for k,v in base.items()} if s>0 else {}
+    normalized = {k: v/s for k,v in base.items()} if s>0 else {}
+    return normalized, quality_confidence
 
-def aggregate(signals: dict, w: dict, reasons: list[str]) -> dict:
+def aggregate(signals: dict, w: dict, reasons: list[str], quality_confidence: float) -> dict:
     # also include a helper set of which signals appeared (for debug in DB)
-    return {"vector": signals, "weights": w, "reasons": reasons, "signals_observed": sorted(list({*signals.keys()}))}
+    return {
+        "vector": signals, "weights": w, "reasons": reasons,
+        "quality_confidence": quality_confidence,
+        "signals_observed": sorted(list({*signals.keys()})),
+    }
 
 @api.on_event("startup")
 def _startup():
@@ -217,8 +244,8 @@ def validate(payload: SignalPayload, background_tasks: BackgroundTasks):
     q = quality_checks(payload.signals)
     x = cross_checks(e)
     reasons = compute_reasons(payload.signals, e)
-    w = compute_weights(payload.signals, q, x, e)
-    v = aggregate(payload.signals, w, reasons)
+    w, quality_confidence = compute_weights(payload.signals, q, x, e)
+    v = aggregate(payload.signals, w, reasons, quality_confidence)
 
     session_id = v["vector"].get("session_id") or f"sess-{os.urandom(4).hex()}"
     background_tasks.add_task(_persist_validated_context, session_id, payload.signals, w, q, x, e, reasons)

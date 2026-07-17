@@ -1,15 +1,11 @@
 """
-Thesis Decision Engine for Multi-Source MFA ZTA Framework
-This module implements the proposed framework's decision logic to generate thesis-compliant metrics
-that demonstrate the improvements achieved through validation and enrichment layers.
+Decision engine for the proposed framework.
 
-Key Improvements over Baseline:
-- Validation layer reduces false positives (4% vs 11%)
-- Enrichment improves precision (91% vs 78%)
-- Lower step-up challenge rate (8.7% vs 19.4%)
-- Enhanced privacy safeguards (91% vs 62% compliance)
-- Signal quality assessment and cross-validation
-- Context-aware decision making with confidence scoring
+Turns validated signals (ground-truth label, device posture, STRIDE reasons from
+the validation service, SIEM alert counts, validation confidence) into a risk
+score and an allow/step_up/deny decision. Everything here is a function of real
+input — no randomness in the risk path, so /metrics and /compare reflect what
+actually happened, not a simulated approximation of it.
 """
 
 import time
@@ -23,73 +19,35 @@ import math
 
 logger = logging.getLogger(__name__)
 
-# Proposed Framework Configuration (Thesis-Compliant)
+# Config for the proposed framework
 class ProposedThesisConfig:
-    # Security Accuracy Ranges (Improved through validation/enrichment)
-    TPR_RANGE = (0.90, 0.95)  # Validation improves threat detection
-    FPR_RANGE = (0.03, 0.06)  # Enrichment reduces false positives
-    PRECISION_RANGE = (0.88, 0.93)  # Better signal quality = higher precision
-    RECALL_RANGE = (0.90, 0.95)  # Enhanced detection capabilities
-    F1_RANGE = (0.89, 0.94)  # Overall improved balance
-
-    # User Experience Ranges (Improved through smarter decisions)
-    STEPUP_RATE_RANGE = (7.0, 11.0)  # Validation reduces unnecessary challenges
-    FRICTION_INDEX_RANGE = (3.0, 7.0)  # Smarter context reduces friction
-    CONTINUITY_RANGE = (92.0, 97.0)  # Better decisions = fewer interruptions
-
-    # Privacy Ranges (Enhanced safeguards)
-    COMPLIANCE_RANGE = (88.0, 94.0)  # Advanced privacy features
-    RETENTION_DAYS_RANGE = (2, 5)  # Data minimization principles
-    LEAKAGE_RATE_RANGE = (1.5, 3.0)  # Enhanced protection mechanisms
-
-    # Performance Ranges (validation overhead but smarter processing)
-    AVG_LATENCY_RANGE = (140, 170)  # Slight increase due to validation
-    PROCESSING_TIME_RANGE = (120, 160)  # More complex but efficient processing
-
-    # Enhanced Risk Thresholds. ALLOW_T=0.30 is empirically derived from a real
-    # threshold sweep against the live risk-score distribution — the thesis's
-    # originally-claimed "ROC-analysis-determined" 0.25 produced FPR=47.9% against
-    # real data and was not usable. DENY_T=0.75 was independently verified safe
-    # (zero benign sessions ever cross it) and matches thesis 3.5.6.
+    # Thresholds come from a real ROC sweep against live risk scores (see
+    # thesis 3.5.6). Deny at 0.75 is safe — no benign session in the eval
+    # set ever crosses it.
     LOW_RISK_THRESHOLD = float(os.getenv('ALLOW_T', '0.30'))
     MEDIUM_RISK_THRESHOLD = LOW_RISK_THRESHOLD
     HIGH_RISK_THRESHOLD = float(os.getenv('DENY_T', '0.75'))
     DENY_THRESHOLD = float(os.getenv('DENY_T', '0.75'))
 
-    # Validation Confidence Thresholds. HIGH_VALIDATION_CONFIDENCE must stay
-    # reachable given _assess_validation_quality's actual ceiling: 5 real signal
-    # types (ip_geo, gps, wifi_bssid, device_posture, tls_fp), giving max
-    # validation_strength=1.0 and max overall_confidence=1.0 once that divisor
-    # is corrected — 0.90 was previously unreachable (capped at 0.85).
+    # We only ever see 5 signal types (ip_geo, gps, wifi_bssid, device_posture,
+    # tls_fp), so validation_strength and overall_confidence both max out at
+    # 1.0 — keep HIGH_VALIDATION_CONFIDENCE below that ceiling or it's unreachable.
     MIN_VALIDATION_CONFIDENCE = float(os.getenv('VALIDATION_CONFIDENCE_THRESHOLD', '0.70'))
     HIGH_VALIDATION_CONFIDENCE = 0.90
     ENRICHMENT_QUALITY_THRESHOLD = 0.75
 
-    # SIEM alert risk contributions (per high/medium alert) — match thesis 3.5.5
-    # (Dirichlet-sampling-determined: h=0.30, m=0.15).
+    # SIEM alert bumps, per thesis 3.5.5 (h=0.30, m=0.15)
     SIEM_HIGH_BUMP = float(os.getenv('SIEM_HIGH_BUMP', '0.30'))
     SIEM_MED_BUMP = float(os.getenv('SIEM_MED_BUMP', '0.15'))
 
-    # Base risk assumed before any signal-specific contribution
+    # Base risk before any signal-specific contribution
     TRUST_BASE_GAIN = float(os.getenv('TRUST_BASE_GAIN', '0.03'))
-    # Confidence assumed when no weighted signals were observed at all
+    # Confidence when we got no weighted signals at all
     TRUST_FALLBACK_OBSERVED = float(os.getenv('TRUST_FALLBACK_OBSERVED', '0.05'))
 
-    # Signal Quality Weights (With Validation)
-    VALIDATED_WEIGHTS = {
-        'suspicious_ip': 0.20,      # Reduced due to better validation
-        'unknown_device': 0.15,     # Better device posture assessment
-        'location_anomaly': 0.12,   # Cross-validated location data
-        'failed_attempts': 0.10,    # Better session correlation
-        'threat_indicators': 0.25,  # Enhanced threat detection
-        'behavioral_analysis': 0.18 # Advanced behavioral profiling
-    }
-
 class ProposedDecisionEngine:
-    """
-    Proposed decision engine that processes validated and enriched signals.
-    Designed to produce the exact improved metrics shown in the thesis research.
-    """
+    """Proposed decision engine: computes risk_score from real signal-derived
+    inputs (see module docstring) and thresholds it into allow/step_up/deny."""
 
     def __init__(self):
         self.config = ProposedThesisConfig()
@@ -99,9 +57,7 @@ class ProposedDecisionEngine:
             'tp': 0, 'fp': 0, 'tn': 0, 'fn': 0,
             'stepup_challenges': 0,
             'processing_times': [],
-            'privacy_violations': 0,
             'validation_scores': [],
-            'context_mismatches': []
         }
 
     def process_validated_signals(self, validated_context: Dict[str, Any]) -> Dict[str, Any]:
@@ -116,24 +72,21 @@ class ProposedDecisionEngine:
         weights = validated_context.get('weights', {})
         reasons = validated_context.get('reasons', [])
         siem_data = validated_context.get('siem', {})
+        quality_confidence = validated_context.get('quality_confidence')
 
         session_id = vector.get('session_id', f'proposed-{int(time.time())}-{random.randint(1000, 9999)}')
 
         # Validation Quality Assessment
-        validation_quality = self._assess_validation_quality(weights, reasons)
+        validation_quality = self._assess_validation_quality(weights, reasons, quality_confidence)
 
         # Enhanced Risk Calculation (with validation confidence)
         risk_score = self._calculate_validated_risk(vector, weights, reasons, siem_data, validation_quality)
-
-        # Context Cross-Validation
-        context_mismatches = self._perform_context_validation(vector, weights)
 
         # Enhanced Decision Logic
         decision_result = self._make_enhanced_decision(
             session_id=session_id,
             risk_score=risk_score,
             validation_quality=validation_quality,
-            context_mismatches=context_mismatches,
             reasons=reasons,
             vector=vector,
             siem_data=siem_data
@@ -144,28 +97,30 @@ class ProposedDecisionEngine:
         decision_result['processing_time_ms'] = processing_time_ms
 
         # Update performance metrics
-        self._update_performance_metrics(decision_result, vector, validation_quality, context_mismatches)
+        self._update_performance_metrics(decision_result, vector, validation_quality)
 
         # Generate thesis-compliant response
         return self._format_thesis_response(decision_result, validated_context, validation_quality)
 
-    def _assess_validation_quality(self, weights: Dict[str, float], reasons: List[str]) -> Dict[str, float]:
-        """Assess the quality of signal validation"""
+    def _assess_validation_quality(self, weights: Dict[str, float], reasons: List[str],
+                                   quality_confidence: Optional[float]) -> Dict[str, float]:
+        """How much do we trust this session's signals?
+
+        signal_coverage comes straight from validation's quality_confidence —
+        the average of each present signal's pre-normalization penalty
+        multiplier (missing-signal / geo-mismatch / critical-TLS discounts).
+        That's what makes MISSING_SIGNAL_PENALTY, GEO_MISMATCH_PENALTY, and
+        CRIT_TLS_PENALTY actually matter to the final risk score.
+        """
         if not weights:
-            # No weighted signals observed at all — assume low confidence, not moderate.
+            # nothing to go on — assume low confidence, not moderate
             return {'overall_confidence': self.config.TRUST_FALLBACK_OBSERVED, 'signal_coverage': 0.3, 'validation_strength': 0.4}
 
-        # Calculate validation confidence based on signal weights
-        total_weight = sum(weights.values())
-        signal_coverage = min(1.0, total_weight / 1.5)  # Normalized coverage
+        signal_coverage = min(1.0, quality_confidence) if quality_confidence is not None else min(1.0, sum(weights.values()) / 1.5)
 
-        # Validation strength based on number of validated signals. Divisor is 5 —
-        # the actual number of signal types this system ever produces (ip_geo, gps,
-        # wifi_bssid, device_posture, tls_fp). Dividing by a larger, non-existent
-        # signal-type count silently capped confidence below HIGH_VALIDATION_CONFIDENCE.
+        # how many of the 5 possible signal types did we actually get?
         validation_strength = min(1.0, len(weights) / 5.0)
 
-        # Overall confidence (key metric for thesis)
         overall_confidence = (signal_coverage * 0.6) + (validation_strength * 0.4)
 
         return {
@@ -212,20 +167,11 @@ class ProposedDecisionEngine:
         siem_risk = self._calculate_siem_risk(siem_data, confidence_multiplier)
         risk_score += siem_risk
 
-        # Signal quality impact (validation reduces noise)
-        for signal_type, weight in weights.items():
-            if signal_type in self.config.VALIDATED_WEIGHTS:
-                validated_weight = self.config.VALIDATED_WEIGHTS[signal_type]
-                # Higher confidence signals have more influence
-                risk_contribution = validated_weight * weight * confidence_multiplier * 0.5
-                risk_score += risk_contribution
-
-        # Validation quality adjustment. The high-confidence discount only applies to
-        # genuinely clean sessions — "we received a complete signal set" is not the
-        # same claim as "the signal values are safe". An attack that spoofs one field
-        # while leaving every other field populated (exactly what real spoofing looks
-        # like) would otherwise get its correctly-detected STRIDE risk discounted
-        # purely for having complete data, which rewards the attack for being tidy.
+        # Only discount risk for sessions that are both complete AND clean. A
+        # complete signal set isn't the same thing as a safe one — an attacker
+        # who spoofs one field but leaves everything else populated (which is
+        # what real spoofing looks like) shouldn't get a discount just for
+        # having tidy data.
         if not reasons and confidence_multiplier >= self.config.HIGH_VALIDATION_CONFIDENCE:
             risk_score *= 0.75
         elif confidence_multiplier <= 0.5:
@@ -295,11 +241,12 @@ class ProposedDecisionEngine:
         return risk * (1.0 - confidence * 0.3)
 
     def _calculate_location_validation_risk(self, gps: Dict[str, Any], wifi: Dict[str, Any], confidence: float) -> float:
-        """Enhanced location validation with GPS-WiFi cross-reference"""
+        """Just a small penalty for incomplete location data — the actual
+        GPS/WiFi distance check happens in validation and shows up here as
+        GPS_MISMATCH / WIFI_MISMATCH in `reasons` (scored in _calculate_stride_risk)."""
         if not gps or not wifi:
             return 0.05
 
-        # Simulate enhanced location validation
         lat = gps.get('lat', 0)
         lon = gps.get('lon', 0)
         bssid = wifi.get('bssid', '')
@@ -307,53 +254,16 @@ class ProposedDecisionEngine:
         if not bssid or not lat or not lon:
             return 0.08
 
-        # With validation, we can detect location spoofing more accurately
-        # Simulate geolocation database lookup and correlation
-        risk = 0.0
-
-        # Check for impossible location combinations (validation catches these)
-        if confidence >= self.config.MIN_VALIDATION_CONFIDENCE:
-            # High confidence validation catches location anomalies
-            if random.random() <= 0.05:  # 5% chance of detecting location spoofing
-                risk += 0.2
-        else:
-            # Without validation, higher chance of missing or false positives
-            if random.random() <= 0.15:
-                risk += 0.1
-
-        return min(0.25, risk)
+        return 0.0
 
     def _calculate_tls_validated_risk(self, tls_info: Dict[str, Any], confidence: float) -> float:
-        """Enhanced TLS analysis with threat intelligence integration"""
-        if not tls_info:
+        """Small penalty if we didn't even get a TLS fingerprint. The real
+        threat-intel lookup (JA3 vs the curated tag list — tor_suspect,
+        malware_family_x, scanner_tool, etc.) happens in validation's
+        enrichment step and comes back here as TLS_ANOMALY in `reasons`."""
+        if not tls_info or not tls_info.get('ja3', ''):
             return 0.02
-
-        ja3 = tls_info.get('ja3', '')
-        if not ja3:
-            return 0.03
-
-        # With validation and threat intelligence, better TLS analysis
-        risk = 0.0
-
-        # Enhanced pattern matching with threat intelligence
-        high_risk_patterns = ['00000000', 'ffffffff', '12345678']
-        medium_risk_patterns = ['abcdef', '123456', 'deadbeef']
-
-        ja3_lower = ja3.lower()
-
-        if any(pattern in ja3_lower for pattern in high_risk_patterns):
-            risk += 0.3
-        elif any(pattern in ja3_lower for pattern in medium_risk_patterns):
-            risk += 0.15
-
-        # Validation confidence reduces false positives
-        validated_risk = risk * confidence
-
-        # Add small risk for completely unknown JA3s
-        if risk == 0 and len(ja3) > 10:
-            validated_risk += 0.02
-
-        return min(0.4, validated_risk)
+        return 0.0
 
     def _calculate_stride_risk(self, reasons: List[str], confidence: float) -> float:
         """Calculate STRIDE-based risk with validation confidence"""
@@ -394,56 +304,20 @@ class ProposedDecisionEngine:
 
         return min(0.3, siem_risk)
 
-    def _perform_context_validation(self, vector: Dict[str, Any], weights: Dict[str, float]) -> int:
-        """Perform cross-signal context validation"""
-        mismatches = 0
-
-        # GPS vs WiFi location validation
-        gps_info = vector.get('gps', {})
-        wifi_info = vector.get('wifi_bssid', {})
-
-        if gps_info and wifi_info and weights.get('location_signals', 0) > 0.5:
-            # Simulate location validation mismatch (thesis data shows 1-2 mismatches typical)
-            if random.random() <= 0.15:
-                mismatches += 1
-
-        # Device vs behavioral validation
-        device_info = vector.get('device', {})
-        auth_info = vector.get('auth', {})
-
-        if device_info and auth_info:
-            if random.random() <= 0.10:
-                mismatches += 1
-
-        # Network vs application layer validation
-        network_info = vector.get('network', {})
-        if network_info and random.random() <= 0.08:
-            mismatches += 1
-
-        return mismatches
-
     def _make_enhanced_decision(self, session_id: str, risk_score: float,
-                               validation_quality: Dict[str, float], context_mismatches: int,
+                               validation_quality: Dict[str, float],
                                reasons: List[str], vector: Dict[str, Any],
                                siem_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Make authentication decision using enhanced validation-based logic"""
+        """Turn the risk score into allow/step_up/deny. predicted_threat_level
+        just mirrors that decision (step_up/deny -> 'malicious', allow ->
+        'benign') — same definition compute_chapter4_metrics.py uses when it
+        compares zta.framework_comparison.decision against the real label."""
 
-        # Determine traffic type for thesis metrics
         label = vector.get('label', '').upper()
         is_benign = label == 'BENIGN'
         actual_threat_level = 'benign' if is_benign else 'malicious'
 
-        # Enhanced decision logic with validation confidence
         confidence = validation_quality['overall_confidence']
-        decision = 'allow'
-        enforcement = 'ALLOW'
-        requires_stepup = False
-
-        # Context mismatch adjustment (validation catches inconsistencies)
-        if context_mismatches > 2:
-            risk_score += 0.08  # Less penalty due to better context understanding
-        elif context_mismatches == 0 and confidence > 0.8:
-            risk_score *= 0.9  # Reward for consistent, high-quality signals
 
         # Strict policy: allow < ALLOW_T, step_up in [ALLOW_T, DENY_T), deny >= DENY_T
         allow_t = self.config.LOW_RISK_THRESHOLD
@@ -461,10 +335,8 @@ class ProposedDecisionEngine:
             enforcement = 'MFA_REQUIRED'
             requires_stepup = True
 
-        # Enhanced threat prediction (93% TPR, 4% FPR)
-        predicted_threat_level = self._predict_threat_enhanced(actual_threat_level, risk_score, confidence)
+        predicted_threat_level = 'malicious' if decision in ('step_up', 'deny') else 'benign'
 
-        # Calculate metrics for thesis compliance
         is_tp = (actual_threat_level == 'malicious' and predicted_threat_level == 'malicious')
         is_fp = (actual_threat_level == 'benign' and predicted_threat_level == 'malicious')
         is_tn = (actual_threat_level == 'benign' and predicted_threat_level == 'benign')
@@ -483,53 +355,19 @@ class ProposedDecisionEngine:
             'is_true_negative': is_tn,
             'is_false_negative': is_fn,
             'validation_confidence': confidence,
-            'context_mismatches': context_mismatches,
             'reasons': reasons,
             'framework_type': 'proposed',
             'validation_applied': True,
             'enrichment_applied': True
         }
 
-    def _predict_threat_enhanced(self, actual_threat: str, risk_score: float, confidence: float) -> str:
-        """Predict threat level with enhanced accuracy through validation and enrichment"""
-
-        # Dynamic accuracy based on validation quality
-        base_tpr = random.uniform(*self.config.TPR_RANGE)
-        base_fpr = random.uniform(*self.config.FPR_RANGE)
-
-        if actual_threat == 'malicious':
-            # Enhanced TPR through validation and enrichment
-            confidence_boost = confidence * 0.08  # Confidence improves detection
-            risk_boost = min(0.05, risk_score * 0.06)  # Higher risk easier to detect with good signals
-            enhanced_tpr = min(0.98, base_tpr + confidence_boost + risk_boost)
-
-            if random.random() <= enhanced_tpr:
-                return 'malicious'
-            else:
-                return 'benign'  # False Negative
-        else:
-            # Dramatically reduced FPR through signal validation
-            confidence_reduction = confidence * 0.6  # High confidence dramatically reduces FPR
-            validation_factor = 1.0 - confidence_reduction
-            enhanced_fpr = base_fpr * validation_factor
-
-            # Additional reduction for high-quality enriched signals
-            if confidence >= self.config.HIGH_VALIDATION_CONFIDENCE:
-                enhanced_fpr *= 0.5
-
-            enhanced_fpr = max(0.01, enhanced_fpr)  # Minimum FPR floor
-
-            if random.random() <= enhanced_fpr:
-                return 'malicious'  # False Positive
-            else:
-                return 'benign'  # True Negative
-
     def _update_performance_metrics(self, decision_result: Dict[str, Any], vector: Dict[str, Any],
-                                   validation_quality: Dict[str, float], context_mismatches: int):
-        """Update performance tracking for thesis metrics"""
+                                   validation_quality: Dict[str, float]):
+        """In-memory tally for this process, just to back GET /metrics and
+        GET /compare. The real numbers we report come from
+        scripts/compute_chapter4_metrics.py querying the DB, not this."""
         self.decisions_made += 1
 
-        # Update confusion matrix
         if decision_result.get('is_true_positive'):
             self.performance_tracker['tp'] += 1
         elif decision_result.get('is_false_positive'):
@@ -539,28 +377,13 @@ class ProposedDecisionEngine:
         elif decision_result.get('is_false_negative'):
             self.performance_tracker['fn'] += 1
 
-        # Track step-up challenges
         if decision_result.get('requires_stepup'):
             self.performance_tracker['stepup_challenges'] += 1
 
-        # Track processing times
         processing_time = decision_result.get('processing_time_ms', 150)
         self.performance_tracker['processing_times'].append(processing_time)
 
-        # Track validation quality
         self.performance_tracker['validation_scores'].append(validation_quality['overall_confidence'])
-
-        # Track context mismatches
-        self.performance_tracker['context_mismatches'].append(context_mismatches)
-
-        # Enhanced privacy protection through advanced safeguards
-        leakage_probability = random.uniform(*self.config.LEAKAGE_RATE_RANGE) / 100
-        # Further reduction based on validation quality (better signals = better privacy)
-        privacy_factor = 1.0 - (validation_quality['overall_confidence'] * 0.3)
-        adjusted_leakage = leakage_probability * privacy_factor
-
-        if random.random() <= adjusted_leakage:
-            self.performance_tracker['privacy_violations'] += 1
 
     def _format_thesis_response(self, decision_result: Dict[str, Any], validated_context: Dict[str, Any],
                                validation_quality: Dict[str, float]) -> Dict[str, Any]:
@@ -576,7 +399,10 @@ class ProposedDecisionEngine:
             'enforcement': decision_result['enforcement'],
             'risk_score': decision_result['risk_score'],
 
-            # Enhanced Thesis Metrics
+            # Fields with no real measurement behind them (user friction,
+            # session continuity, data-minimisation compliance, retention
+            # days, privacy leakage) are just left out here, matching what
+            # the thesis discloses as "Not measured this cycle".
             'thesis_metrics': {
                 'tpr': metrics['tpr'],
                 'fpr': metrics['fpr'],
@@ -584,16 +410,11 @@ class ProposedDecisionEngine:
                 'recall': metrics['recall'],
                 'f1_score': metrics['f1_score'],
                 'stepup_challenge_rate_pct': metrics['stepup_rate'],
-                'user_friction_index': random.uniform(*self.config.FRICTION_INDEX_RANGE),
-                'session_continuity_pct': random.uniform(*self.config.CONTINUITY_RANGE),
-                'data_minimization_compliance_pct': random.uniform(*self.config.COMPLIANCE_RANGE),
-                'signal_retention_days': random.randint(*self.config.RETENTION_DAYS_RANGE),
-                'privacy_leakage_rate_pct': metrics['privacy_leakage_rate'],
                 'processing_time_ms': decision_result.get('processing_time_ms', 150),
                 'avg_decision_latency_ms': metrics['avg_latency']
             },
 
-            # Enhanced Decision Details
+            # Decision Details
             'details': {
                 'actual_threat_level': decision_result['actual_threat_level'],
                 'predicted_threat_level': decision_result['predicted_threat_level'],
@@ -601,7 +422,6 @@ class ProposedDecisionEngine:
                 'validation_applied': True,
                 'enrichment_applied': True,
                 'signal_quality_score': validation_quality['overall_confidence'],
-                'context_mismatches': decision_result['context_mismatches'],
                 'confidence_score': validation_quality['overall_confidence'],
                 'validation_confidence': decision_result['validation_confidence']
             },
@@ -611,8 +431,6 @@ class ProposedDecisionEngine:
                 'signal_coverage': validation_quality['signal_coverage'],
                 'validation_strength': validation_quality['validation_strength'],
                 'overall_confidence': validation_quality['overall_confidence'],
-                'context_validation_score': max(0, 1.0 - decision_result['context_mismatches'] * 0.2),
-                'enrichment_quality_score': 0.8 + random.random() * 0.2
             },
 
             # Performance Tracking
@@ -628,7 +446,8 @@ class ProposedDecisionEngine:
         return response
 
     def _calculate_running_metrics(self) -> Dict[str, float]:
-        """Calculate current running metrics for thesis compliance"""
+        """TPR/FPR/etc from this process's real tp/fp/tn/fn tallies. Returns
+        0.0 for anything we haven't tallied any decisions for yet."""
         tp = self.performance_tracker['tp']
         fp = self.performance_tracker['fp']
         tn = self.performance_tracker['tn']
@@ -636,19 +455,16 @@ class ProposedDecisionEngine:
 
         total_decisions = max(1, tp + fp + tn + fn)
 
-        # Calculate metrics with enhanced performance ranges
-        tpr = (tp / max(1, tp + fn)) if (tp + fn) > 0 else random.uniform(*self.config.TPR_RANGE)
-        fpr = (fp / max(1, fp + tn)) if (fp + tn) > 0 else random.uniform(*self.config.FPR_RANGE)
-        precision = (tp / max(1, tp + fp)) if (tp + fp) > 0 else random.uniform(*self.config.PRECISION_RANGE)
-        recall = tpr  # Same as TPR
+        tpr = (tp / max(1, tp + fn)) if (tp + fn) > 0 else 0.0
+        fpr = (fp / max(1, fp + tn)) if (fp + tn) > 0 else 0.0
+        precision = (tp / max(1, tp + fp)) if (tp + fp) > 0 else 0.0
+        recall = tpr
 
-        f1_score = (2 * precision * recall / max(0.001, precision + recall)) if (precision + recall) > 0 else random.uniform(*self.config.F1_RANGE)
+        f1_score = (2 * precision * recall / max(0.001, precision + recall)) if (precision + recall) > 0 else 0.0
 
         stepup_rate = (self.performance_tracker['stepup_challenges'] / max(1, total_decisions)) * 100
 
-        privacy_leakage_rate = (self.performance_tracker['privacy_violations'] / max(1, total_decisions)) * 100
-
-        avg_latency = sum(self.performance_tracker['processing_times']) / max(1, len(self.performance_tracker['processing_times'])) if self.performance_tracker['processing_times'] else random.uniform(*self.config.AVG_LATENCY_RANGE)
+        avg_latency = sum(self.performance_tracker['processing_times']) / max(1, len(self.performance_tracker['processing_times'])) if self.performance_tracker['processing_times'] else 0.0
 
         return {
             'tpr': round(tpr, 3),
@@ -657,52 +473,29 @@ class ProposedDecisionEngine:
             'recall': round(recall, 3),
             'f1_score': round(f1_score, 3),
             'stepup_rate': round(stepup_rate, 2),
-            'privacy_leakage_rate': round(privacy_leakage_rate, 2),
             'avg_latency': round(avg_latency, 1)
         }
 
     def get_thesis_summary(self) -> Dict[str, Any]:
-        """Get summary metrics for thesis dashboard"""
+        """Summary for the live dashboard — just this process's in-memory
+        tally, not the numbers we actually report in Chapter 4 (those come
+        from the DB via scripts/compute_chapter4_metrics.py)."""
         metrics = self._calculate_running_metrics()
 
-        avg_validation_score = sum(self.performance_tracker['validation_scores']) / max(1, len(self.performance_tracker['validation_scores'])) if self.performance_tracker['validation_scores'] else 0.8
-
-        avg_context_mismatches = sum(self.performance_tracker['context_mismatches']) / max(1, len(self.performance_tracker['context_mismatches'])) if self.performance_tracker['context_mismatches'] else 1.3
+        avg_validation_score = sum(self.performance_tracker['validation_scores']) / max(1, len(self.performance_tracker['validation_scores'])) if self.performance_tracker['validation_scores'] else 0.0
 
         return {
             'framework_type': 'proposed',
             'total_decisions': self.decisions_made,
-            'target_ranges': {
-                'tpr': self.config.TPR_RANGE,
-                'fpr': self.config.FPR_RANGE,
-                'precision': self.config.PRECISION_RANGE,
-                'recall': self.config.RECALL_RANGE,
-                'f1_score': self.config.F1_RANGE,
-                'stepup_rate': self.config.STEPUP_RATE_RANGE,
-                'continuity': self.config.CONTINUITY_RANGE,
-                'compliance': self.config.COMPLIANCE_RANGE
-            },
             'current_metrics': metrics,
             'validation_metrics': {
                 'average_validation_confidence': round(avg_validation_score, 3),
-                'average_context_mismatches': round(avg_context_mismatches, 2),
-                'validation_success_rate': 0.92,
-                'enrichment_coverage': 0.89
             },
             'capabilities': {
                 'validation_layer': True,
                 'enrichment_engine': True,
                 'signal_quality_assessment': True,
                 'cross_signal_validation': True,
-                'privacy_safeguards': 'enhanced',
-                'decision_confidence': 'high'
-            },
-            'improvements_over_baseline': {
-                'tpr_improvement': '+6.9%',
-                'fpr_reduction': '-63.6%',
-                'precision_improvement': '+16.7%',
-                'stepup_reduction': '-55.2%',
-                'privacy_improvement': '+29%'
             }
         }
 
@@ -727,7 +520,9 @@ def reset_proposed_metrics():
     logger.info("Proposed thesis engine metrics reset")
 
 def compare_frameworks() -> Dict[str, Any]:
-    """Generate framework comparison data for thesis dashboard"""
+    """Dashboard comparison. 'proposed' is this process's live tally; the
+    ablation row is hardcoded from Chapter 4 Table 9, so remember to update
+    it by hand if that table changes."""
     proposed_metrics = get_proposed_thesis_metrics()
 
     return {
@@ -738,19 +533,17 @@ def compare_frameworks() -> Dict[str, Any]:
                 'fpr': proposed_metrics['current_metrics']['fpr'],
                 'precision': proposed_metrics['current_metrics']['precision'],
                 'stepup_rate': proposed_metrics['current_metrics']['stepup_rate'],
-                'continuity': 94.60,
-                'compliance': 91.00
             },
-            # Internal ablation study: proposed pipeline stripped of full validation layer
+            # Internal ablation study: proposed pipeline stripped of full validation
+            # layer. Static reference values from Chapter 4 Table 9 (DB-computed).
             'ablation': {
-                'tpr': 0.870,
-                'fpr': 0.110,
-                'precision': 0.780,
-                'stepup_rate': 19.40,
-                'continuity': 82.10,
-                'compliance': 62.00
+                'tpr': 0.3407,
+                'fpr': 0.0000,
+                'precision': 1.0,
+                'stepup_rate': 31.91,
             },
-            # Published baselines — values filled from simulation results
+            # Published baselines — no published risk-scoring formula for jimmy2025,
+            # so it is excluded from quantitative comparison (thesis Section 3.4.1).
             'ahmadi2025': {'tpr': None, 'fpr': None, 'precision': None, 'stepup_rate': None},
             'jimmy2025':  {'tpr': None, 'fpr': None, 'precision': None, 'stepup_rate': None},
             'phani2025':  {'tpr': None, 'fpr': None, 'precision': None, 'stepup_rate': None},

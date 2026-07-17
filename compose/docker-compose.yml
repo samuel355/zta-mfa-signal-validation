@@ -53,6 +53,9 @@ services:
       PGOPTIONS: ${PGOPTIONS}
       DIST_THRESHOLD_KM: ${DIST_THRESHOLD_KM}
       TLS_CRITICAL_TAGS: ${TLS_CRITICAL_TAGS}
+      MISSING_SIGNAL_PENALTY: ${MISSING_SIGNAL_PENALTY:-0.3}
+      GEO_MISMATCH_PENALTY: ${GEO_MISMATCH_PENALTY:-0.5}
+      CRIT_TLS_PENALTY: ${CRIT_TLS_PENALTY:-0.2}
       PATH_GEOIP: /data/geolite2/GeoLite2-City.mmdb
       PATH_WIFI: /data/wifi/wigle_sample.csv
       PATH_TLS: /data/tls/ja3_fingerprints.csv

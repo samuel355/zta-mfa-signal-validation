@@ -1,16 +1,15 @@
 """
-Baseline Thesis Engine for Multi-Source MFA ZTA Framework
-This module implements the baseline framework logic to generate thesis-compliant metrics
-that match the research findings shown in the defense presentation.
+Ablation engine — same pipeline as the proposed framework, minus the validation
+layer.
 
-Key Differences from Proposed Framework:
-- No validation layer (direct signal ingestion)
-- No enrichment (raw signals only)
-- Higher false positive rate (11% vs 4%)
-- Lower precision (78% vs 91%)
-- Higher step-up challenge rate (19.4% vs 8.7%)
-- No signal quality assessment
-- Consistent business hours logic (removed inconsistency)
+Gets the same real signals (CIC-IDS2018/RBA label, raw IP/device/GPS/WiFi/TLS
+fields) but skips validation's cross-source checks, enrichment lookups, and
+dynamic signal weighting entirely. That's what "validation layer disabled"
+should actually mean.
+
+Every risk contribution and the final decision are plain functions of the raw
+signal content, so what we report here is a genuine measurement of a
+validation-free system, not something tuned to look right.
 """
 
 import time
@@ -22,36 +21,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Baseline Framework Configuration (Thesis-Compliant)
+# Config for the no-validation-layer configuration
 class BaselineThesisConfig:
-    # Security Accuracy Ranges (realistic baseline performance)
-    TPR_RANGE = (0.82, 0.89)  # True Positive Rate variability
-    FPR_RANGE = (0.08, 0.14)  # False Positive Rate variability
-    PRECISION_RANGE = (0.74, 0.82)
-    RECALL_RANGE = (0.82, 0.89)
-    F1_RANGE = (0.78, 0.85)
+    # Lower step-up bar than the proposed framework's ALLOW_T=0.30/DENY_T=0.75
+    # — a naive system with no validation-confidence discount just takes raw
+    # risk signals at face value, so it should step up sooner.
+    MEDIUM_RISK_THRESHOLD = 0.35
+    DENY_THRESHOLD = 0.75
 
-    # User Experience Ranges (without validation/enrichment)
-    STEPUP_RATE_RANGE = (16.0, 22.0)  # Higher due to conservative approach
-    FRICTION_INDEX_RANGE = (12.0, 16.0)
-    CONTINUITY_RANGE = (78.0, 86.0)  # Lower due to more disruptions
-
-    # Privacy Ranges (basic compliance)
-    COMPLIANCE_RANGE = (58.0, 66.0)  # Lower without enhanced privacy features
-    RETENTION_DAYS_RANGE = (12, 16)  # Standard retention
-    LEAKAGE_RATE_RANGE = (8.0, 11.0)  # Higher without advanced safeguards
-
-    # Performance Ranges (simpler processing)
-    AVG_LATENCY_RANGE = (100, 140)
-    PROCESSING_TIME_RANGE = (80, 120)
-
-    # Risk Thresholds (More Balanced - Still Conservative but Better Detection)
-    LOW_RISK_THRESHOLD = 0.15  # Lower threshold for better detection
-    MEDIUM_RISK_THRESHOLD = 0.35  # More sensitive to threats
-    HIGH_RISK_THRESHOLD = 0.60  # Earlier step-up
-    DENY_THRESHOLD = 0.75  # Earlier denial
-
-    # Signal Weights (No Validation/Enrichment)
+    # Signal weights — no validation or enrichment behind these
     WEIGHTS = {
         'suspicious_ip': 0.25,
         'unknown_device': 0.20,
@@ -62,10 +40,8 @@ class BaselineThesisConfig:
     }
 
 class BaselineDecisionEngine:
-    """
-    Baseline decision engine that processes raw signals without validation or enrichment.
-    Designed to produce the exact metrics shown in the thesis research.
-    """
+    """Processes raw signals with no validation layer — no cross-source
+    checks, no enrichment lookups, no dynamic weighting. See module docstring."""
 
     def __init__(self):
         self.config = BaselineThesisConfig()
@@ -74,7 +50,6 @@ class BaselineDecisionEngine:
             'tp': 0, 'fp': 0, 'tn': 0, 'fn': 0,
             'stepup_challenges': 0,
             'processing_times': [],
-            'privacy_violations': 0
         }
 
     def process_signals(self, raw_signals: Dict[str, Any]) -> Dict[str, Any]:
@@ -172,51 +147,33 @@ class BaselineDecisionEngine:
         if risk_factors.get('tls_anomaly', False):
             risk_score += 0.12
 
-        # Add baseline noise to simulate less accurate decision making
-        noise_factor = random.uniform(-0.02, 0.08)  # Slight positive bias for higher FPR
-        risk_score += noise_factor
-
         return max(0.0, min(1.0, risk_score))
 
     def _make_baseline_decision(self, session_id: str, risk_score: float,
                               risk_factors: Dict[str, Any], raw_signals: Dict[str, Any]) -> Dict[str, Any]:
-        """Make authentication decision using baseline logic"""
+        """Naive two-threshold decision, nothing fancy. predicted_threat_level
+        just mirrors `decision` (step_up/deny -> 'malicious', allow ->
+        'benign'), same as what compute_chapter4_metrics.py uses."""
 
-        # Determine traffic type for thesis metrics
         label = raw_signals.get('label', '').upper()
         is_benign = label == 'BENIGN'
         actual_threat_level = 'benign' if is_benign else 'malicious'
 
-        # Baseline decision logic (less sophisticated than proposed)
-        decision = 'allow'
-        enforcement = 'ALLOW'
-        requires_stepup = False
-
-        # Realistic baseline decision logic (conservative without validation)
         if risk_score >= self.config.DENY_THRESHOLD:
             decision = 'deny'
             enforcement = 'DENY'
+            requires_stepup = False
         elif risk_score >= self.config.MEDIUM_RISK_THRESHOLD:
-            # Conservative approach leads to more step-ups
-            step_probability = 0.45 + (risk_score - self.config.MEDIUM_RISK_THRESHOLD) * 0.8
-            if random.random() <= step_probability:
-                decision = 'step_up'
-                enforcement = 'MFA_REQUIRED'
-                requires_stepup = True
-        elif risk_score >= self.config.LOW_RISK_THRESHOLD:
-            # Without validation, baseline is less confident, leading to more false positives
-            if is_benign:
-                # Natural FPR due to lack of signal validation
-                fp_probability = 0.09 + (risk_score * 0.08)  # Variable based on risk
-                if random.random() <= fp_probability:
-                    decision = 'step_up'
-                    enforcement = 'MFA_REQUIRED'
-                    requires_stepup = True
+            decision = 'step_up'
+            enforcement = 'MFA_REQUIRED'
+            requires_stepup = True
+        else:
+            decision = 'allow'
+            enforcement = 'ALLOW'
+            requires_stepup = False
 
-        # Predict threat level with realistic baseline variability
-        predicted_threat_level = self._predict_threat_baseline(actual_threat_level, risk_score, is_benign)
+        predicted_threat_level = 'malicious' if decision in ('step_up', 'deny') else 'benign'
 
-        # Calculate metrics for thesis compliance
         is_tp = (actual_threat_level == 'malicious' and predicted_threat_level == 'malicious')
         is_fp = (actual_threat_level == 'benign' and predicted_threat_level == 'malicious')
         is_tn = (actual_threat_level == 'benign' and predicted_threat_level == 'benign')
@@ -240,79 +197,42 @@ class BaselineDecisionEngine:
             'enrichment_applied': False
         }
 
-    def _predict_threat_baseline(self, actual_threat: str, risk_score: float, is_benign: bool) -> str:
-        """Predict threat level with realistic baseline accuracy (variable performance)"""
-
-        # Dynamic accuracy based on signal quality and conditions
-        base_tpr = random.uniform(*self.config.TPR_RANGE)
-        base_fpr = random.uniform(*self.config.FPR_RANGE)
-
-        # Adjust accuracy based on risk score (higher risk = easier to detect)
-        if actual_threat == 'malicious':
-            # TPR improves with higher risk scores
-            adjusted_tpr = min(0.95, base_tpr + (risk_score * 0.15))
-            if random.random() <= adjusted_tpr:
-                return 'malicious'
-            else:
-                return 'benign'  # False Negative
-        else:
-            # FPR increases with higher risk scores (less precise without validation)
-            adjusted_fpr = min(0.20, base_fpr + (risk_score * 0.12))
-            if random.random() <= adjusted_fpr:
-                return 'malicious'  # False Positive
-            else:
-                return 'benign'  # True Negative
-
     def _is_suspicious_ip_simple(self, ip: str) -> bool:
-        """Simple IP reputation check without external enrichment"""
+        """Just format heuristics — no GeoLite2 or threat-intel lookup here."""
         if not ip:
             return False
 
-        # Simple heuristics (no external threat intel)
         suspicious_patterns = [
             ip.startswith('10.'),  # Private IP used publicly
             ip.startswith('192.168.'),  # Another private range
             '.' in ip and len(ip.split('.')) != 4,  # Malformed IP
         ]
 
-        return any(suspicious_patterns) or random.random() <= 0.05
+        return any(suspicious_patterns)
 
     def _is_known_device_simple(self, device_info: Dict[str, Any]) -> bool:
-        """Simple device recognition without device posture enrichment"""
+        """Trust is just "did we get a device_id" — no patched/EDR check,
+        since that needs the device-posture DB lookup validation does."""
         if not device_info:
             return False
-
-        # Check if device has basic info
-        device_id = device_info.get('device_id', '')
-        if not device_id:
-            return False
-
-        # Baseline approach: simple trust based on device_id presence
-        # No advanced posture checking (patched, edr status, etc.)
-        # This leads to less accurate device trust decisions
-        return random.random() <= 0.4  # 40% chance of trusting device
+        return bool(device_info.get('device_id', ''))
 
     def _detect_location_anomaly_simple(self, gps: Dict[str, Any], wifi: Dict[str, Any]) -> bool:
-        """Simple location anomaly detection without enrichment"""
-        if not gps or not wifi:
-            return False
-
-        # Basic distance check without sophisticated geo-enrichment
-        return random.random() <= 0.15
+        """No GPS-vs-WiFi cross-check here (that's validation's job), so a
+        naive system genuinely can't tell if location looks wrong — it never
+        flags one. That's the point of the ablation, not a gap to fill in."""
+        return False
 
     def _count_recent_failures_simple(self, auth_info: Dict[str, Any]) -> int:
-        """Simple failure counting without session correlation"""
-        # Baseline approach: simple counter
-        return random.randint(0, 3)
+        """Sessions are independent/single-shot in the simulator, so there's
+        no prior-attempt history to count."""
+        return 0
 
     def _detect_cic2018_threats(self, label: str) -> List[str]:
         """Detect threats from CIC-IDS2018 network traffic labels (ablation approach)"""
         threats = []
 
         if label == 'BENIGN':
-            # Ablation has higher false positive rate - sometimes flags benign traffic
-            if random.random() <= 0.12:  # 12% chance of false threat detection
-                threats.append('SUSPICIOUS_PATTERN')
             return threats
 
         # Map CIC-IDS2018 labels to threat indicators (basic mapping without enrichment)
@@ -335,48 +255,20 @@ class BaselineDecisionEngine:
                 threats.extend(threat_list[:2])  # Add first 2 threats max
                 break
 
-        # Baseline misses some threats due to lack of enrichment
-        if threats and random.random() <= 0.15:  # 15% chance of missing detected threat
-            threats = threats[:-1] if len(threats) > 1 else []
-
         return threats
 
     def _detect_tls_anomaly_simple(self, tls_info: Dict[str, Any]) -> bool:
-        """Simple TLS fingerprint analysis without enrichment"""
-        if not tls_info:
-            return False
-
-        ja3 = tls_info.get('ja3', '')
-        if not ja3:
-            return False
-
-        # Baseline approach: simple pattern matching without threat intelligence
-        # This leads to both false positives and false negatives
-        suspicious_patterns = ['00000000', 'ffffffff', '12345678']
-
-        for pattern in suspicious_patterns:
-            if pattern in ja3.lower():
-                return True
-
-        # Random false positive rate for unknown JA3s
-        return random.random() <= 0.08
+        """No threat-intel table to check the fingerprint against here (same
+        deal as _detect_location_anomaly_simple), so this never flags one."""
+        return False
 
     def _detect_behavioral_anomaly_simple(self, signals: Dict[str, Any]) -> bool:
-        """Simple behavioral analysis without user profiling"""
-        # Baseline approach: basic heuristics only
-        auth_info = signals.get('auth', {})
-
-        # Check for rapid authentication attempts
-        if auth_info and random.random() <= 0.1:
-            return True
-
-        # Basic check for unusual network patterns from CIC-IDS2018 data
+        """Crude stand-in for behavioral analysis: anything non-benign counts
+        as a behavioral anomaly. Yes, that overlaps with the CIC2018
+        threat-label check above — that's fine, a naive system wouldn't
+        bother separating the two anyway."""
         label = signals.get('label', 'BENIGN').upper()
-        if label != 'BENIGN':
-            # Any non-benign traffic is considered behavioral anomaly
-            return True
-
-        return False
+        return label != 'BENIGN'
 
     def _update_performance_metrics(self, decision_result: Dict[str, Any], raw_signals: Dict[str, Any]):
         """Update performance tracking for thesis metrics"""
@@ -400,15 +292,9 @@ class BaselineDecisionEngine:
         processing_time = decision_result.get('processing_time_ms', 120)
         self.performance_tracker['processing_times'].append(processing_time)
 
-        # Simulate privacy violations (baseline has higher rate due to less sophisticated handling)
-        leakage_probability = random.uniform(*self.config.LEAKAGE_RATE_RANGE) / 100
-        if random.random() <= leakage_probability:
-            self.performance_tracker['privacy_violations'] += 1
-
     def _format_thesis_response(self, decision_result: Dict[str, Any], raw_signals: Dict[str, Any]) -> Dict[str, Any]:
-        """Format response for thesis dashboard and metrics collection"""
+        """Format response for dashboard and metrics collection"""
 
-        # Calculate current running metrics
         metrics = self._calculate_running_metrics()
 
         response = {
@@ -418,7 +304,6 @@ class BaselineDecisionEngine:
             'enforcement': decision_result['enforcement'],
             'risk_score': decision_result['risk_score'],
 
-            # Thesis Metrics
             'thesis_metrics': {
                 'tpr': metrics['tpr'],
                 'fpr': metrics['fpr'],
@@ -426,16 +311,10 @@ class BaselineDecisionEngine:
                 'recall': metrics['recall'],
                 'f1_score': metrics['f1_score'],
                 'stepup_challenge_rate_pct': metrics['stepup_rate'],
-                'user_friction_index': random.uniform(*self.config.FRICTION_INDEX_RANGE),
-                'session_continuity_pct': random.uniform(*self.config.CONTINUITY_RANGE),
-                'data_minimization_compliance_pct': random.uniform(*self.config.COMPLIANCE_RANGE),
-                'signal_retention_days': random.randint(*self.config.RETENTION_DAYS_RANGE),
-                'privacy_leakage_rate_pct': metrics['privacy_leakage_rate'],
                 'processing_time_ms': decision_result.get('processing_time_ms', 120),
                 'avg_decision_latency_ms': metrics['avg_latency']
             },
 
-            # Decision Details
             'details': {
                 'actual_threat_level': decision_result['actual_threat_level'],
                 'predicted_threat_level': decision_result['predicted_threat_level'],
@@ -443,11 +322,8 @@ class BaselineDecisionEngine:
                 'validation_applied': False,
                 'enrichment_applied': False,
                 'signal_quality_score': None,  # Baseline doesn't have this
-                'context_mismatches': 0,  # Baseline doesn't track this
-                'confidence_score': 0.6 + random.random() * 0.3  # Lower confidence
             },
 
-            # Performance Tracking
             'performance': {
                 'decisions_made': self.decisions_made,
                 'true_positives': self.performance_tracker['tp'],
@@ -460,7 +336,8 @@ class BaselineDecisionEngine:
         return response
 
     def _calculate_running_metrics(self) -> Dict[str, float]:
-        """Calculate current running metrics for thesis compliance"""
+        """TPR/FPR/etc from this process's real tp/fp/tn/fn tallies. Returns
+        0.0 for anything we haven't tallied any decisions for yet."""
         tp = self.performance_tracker['tp']
         fp = self.performance_tracker['fp']
         tn = self.performance_tracker['tn']
@@ -468,19 +345,16 @@ class BaselineDecisionEngine:
 
         total_decisions = max(1, tp + fp + tn + fn)
 
-        # Calculate metrics with realistic baseline performance
-        tpr = (tp / max(1, tp + fn)) if (tp + fn) > 0 else random.uniform(*self.config.TPR_RANGE)
-        fpr = (fp / max(1, fp + tn)) if (fp + tn) > 0 else random.uniform(*self.config.FPR_RANGE)
-        precision = (tp / max(1, tp + fp)) if (tp + fp) > 0 else random.uniform(*self.config.PRECISION_RANGE)
-        recall = tpr  # Same as TPR
+        tpr = (tp / max(1, tp + fn)) if (tp + fn) > 0 else 0.0
+        fpr = (fp / max(1, fp + tn)) if (fp + tn) > 0 else 0.0
+        precision = (tp / max(1, tp + fp)) if (tp + fp) > 0 else 0.0
+        recall = tpr
 
-        f1_score = (2 * precision * recall / max(0.001, precision + recall)) if (precision + recall) > 0 else random.uniform(*self.config.F1_RANGE)
+        f1_score = (2 * precision * recall / max(0.001, precision + recall)) if (precision + recall) > 0 else 0.0
 
         stepup_rate = (self.performance_tracker['stepup_challenges'] / max(1, total_decisions)) * 100
 
-        privacy_leakage_rate = (self.performance_tracker['privacy_violations'] / max(1, total_decisions)) * 100
-
-        avg_latency = sum(self.performance_tracker['processing_times']) / max(1, len(self.performance_tracker['processing_times'])) if self.performance_tracker['processing_times'] else random.uniform(*self.config.AVG_LATENCY_RANGE)
+        avg_latency = sum(self.performance_tracker['processing_times']) / max(1, len(self.performance_tracker['processing_times'])) if self.performance_tracker['processing_times'] else 0.0
 
         return {
             'tpr': round(tpr, 3),
@@ -489,35 +363,23 @@ class BaselineDecisionEngine:
             'recall': round(recall, 3),
             'f1_score': round(f1_score, 3),
             'stepup_rate': round(stepup_rate, 2),
-            'privacy_leakage_rate': round(privacy_leakage_rate, 2),
             'avg_latency': round(avg_latency, 1)
         }
 
     def get_thesis_summary(self) -> Dict[str, Any]:
-        """Get summary metrics for thesis dashboard"""
+        """Summary for the live dashboard — just this process's in-memory
+        tally, not the actual reported numbers (see compute_chapter4_metrics.py)."""
         metrics = self._calculate_running_metrics()
 
         return {
             'framework_type': 'ablation',
             'total_decisions': self.decisions_made,
-            'target_ranges': {
-                'tpr': self.config.TPR_RANGE,
-                'fpr': self.config.FPR_RANGE,
-                'precision': self.config.PRECISION_RANGE,
-                'recall': self.config.RECALL_RANGE,
-                'f1_score': self.config.F1_RANGE,
-                'stepup_rate': self.config.STEPUP_RATE_RANGE,
-                'continuity': self.config.CONTINUITY_RANGE,
-                'compliance': self.config.COMPLIANCE_RANGE
-            },
             'current_metrics': metrics,
             'capabilities': {
                 'validation_layer': False,
                 'enrichment_engine': False,
                 'signal_quality_assessment': False,
                 'cross_signal_validation': False,
-                'privacy_safeguards': 'basic',
-                'decision_confidence': 'low'
             }
         }
 
