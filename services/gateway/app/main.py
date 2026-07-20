@@ -201,12 +201,10 @@ def _persist_gateway_decision(session_id: str, decision: str, risk: float, enfor
     # (POSTURE_OUTDATED) regardless of where it falls in `reasons`.
     STRIDE_PRIORITY = [
         ("REPUDIATION", "Repudiation"),
-        ("DDOS", "Denial of Service"),
         ("DOS", "Denial of Service"),
         ("SPOOFING", "Spoofing"),
         ("POLICY", "Escalation of Privilege"),
         ("EOP", "Escalation of Privilege"),
-        ("DOWNLOAD", "Information Disclosure"),
         ("EXFIL", "Information Disclosure"),
         ("TLS_ANOMALY", "Tampering"),
         ("TLS", "Tampering"),

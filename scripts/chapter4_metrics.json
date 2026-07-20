@@ -374,7 +374,8 @@
     "Repudiation": 156,
     "DoS": 503,
     "EoP": 181,
-    "Tampering": 496,
+    "InformationDisclosure": 242,
+    "Tampering": 415,
     "Spoofing": 216
   },
   "stride_severity_distribution": {
@@ -385,6 +386,10 @@
       "medium": 2,
       "low": 179
     },
+    "InformationDisclosure": {
+      "medium": 159,
+      "low": 83
+    },
     "Repudiation": {
       "low": 155,
       "medium": 1
@@ -393,7 +398,7 @@
       "low": 503
     },
     "Tampering": {
-      "low": 496
+      "low": 415
     }
   },
   "network_conditions": null

@@ -20,14 +20,10 @@ logger = logging.getLogger(__name__)
 class ProposedThesisConfig:
     # Decision thresholds from ROC sweep against live risk scores.
     LOW_RISK_THRESHOLD = float(os.getenv('ALLOW_T', '0.24'))
-    MEDIUM_RISK_THRESHOLD = LOW_RISK_THRESHOLD
-    HIGH_RISK_THRESHOLD = float(os.getenv('DENY_T', '0.75'))
     DENY_THRESHOLD = float(os.getenv('DENY_T', '0.75'))
 
     # 5 signal types max, so confidence values cap at 1.0.
-    MIN_VALIDATION_CONFIDENCE = float(os.getenv('VALIDATION_CONFIDENCE_THRESHOLD', '0.70'))
     HIGH_VALIDATION_CONFIDENCE = 0.90
-    ENRICHMENT_QUALITY_THRESHOLD = 0.75
 
     # SIEM alert bumps
     SIEM_HIGH_BUMP = float(os.getenv('SIEM_HIGH_BUMP', '0.30'))
@@ -174,7 +170,7 @@ class ProposedDecisionEngine:
         actionable = {
             'SPOOFING', 'GPS_MISMATCH', 'WIFI_MISMATCH', 'TLS_ANOMALY',
             'REPUDIATION', 'DOS', 'POLICY_ELEVATION', 'CREDENTIAL_ATTACK',
-            'EXFILTRATION', 'DOWNLOAD_EXFIL',
+            'EXFILTRATION',
         }
         if any(any(code in str(reason).upper() for code in actionable) for reason in reasons):
             risk_score = max(risk_score, self.config.LOW_RISK_THRESHOLD)
@@ -253,11 +249,9 @@ class ProposedDecisionEngine:
         stride_map = {
             'SPOOFING': 0.12,
             'DOS': 0.30,
-            'DDOS': 0.30,
             'POLICY_ELEVATION': 0.25,
             'CREDENTIAL_ATTACK': 0.30,
             'EXFILTRATION': 0.30,
-            'DOWNLOAD_EXFIL': 0.20,
             'TLS_ANOMALY': 0.15,
             'POSTURE_OUTDATED': 0.08,
             'REPUDIATION': 0.18,

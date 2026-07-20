@@ -78,7 +78,7 @@ _STRIDE_PRIORITY = [
     ("GPS_MISMATCH", "Spoofing"),
     ("WIFI_MISMATCH", "Spoofing"),
     ("POLICY_ELEVATION", "EoP"),
-    ("DOWNLOAD_EXFIL", "InformationDisclosure"),
+    ("EXFILTRATION", "InformationDisclosure"),
     ("TLS_ANOMALY", "Tampering"),
     ("POSTURE_OUTDATED", "Tampering"),
 ]
