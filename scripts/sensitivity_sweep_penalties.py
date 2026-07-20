@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
 """
-Real sensitivity sweep for the three signal-weight penalty constants
-(MISSING_SIGNAL_PENALTY, GEO_MISMATCH_PENALTY, CRIT_TLS_PENALTY) now that
-quality_confidence actually feeds into the proposed framework's decisions
-(see services/validation/app/main.py and trust/app/decision_engine.py).
+Sensitivity sweep for the signal-quality penalty/window constants
+(MISSING_SIGNAL_PENALTY, GEO_MISMATCH_PENALTY, CRIT_TLS_PENALTY,
+DEVICE_TLS_MISMATCH_PENALTY, DEVICE_FRESHNESS_WINDOW_DAYS).
 
-Replays the real signal payloads already collected in zta.validated_context
+Replays the signal payloads already collected in zta.validated_context
 against validation -> gateway -> trust for each configuration, holding the
-other two constants at baseline. This avoids a full ~15-minute simulator run
-(CIC2018/RBA loading, etc.) per sweep point — the signals are already real and
-already have known ground truth (embedded label field).
+other constants at baseline.
 
 Requires: `docker compose up -d validation gateway trust` with the target env
 vars set before each configuration's pass (this script restarts the
@@ -31,7 +28,13 @@ COMPOSE_FILE = "compose/docker-compose.yml"
 SAMPLE_MALICIOUS = 1200
 CONCURRENCY = 24
 
-BASELINE = {"MISSING_SIGNAL_PENALTY": "0.3", "GEO_MISMATCH_PENALTY": "0.5", "CRIT_TLS_PENALTY": "0.2"}
+BASELINE = {
+    "MISSING_SIGNAL_PENALTY": "0.3",
+    "GEO_MISMATCH_PENALTY": "0.5",
+    "CRIT_TLS_PENALTY": "0.2",
+    "DEVICE_TLS_MISMATCH_PENALTY": "0.4",
+    "DEVICE_FRESHNESS_WINDOW_DAYS": "30",
+}
 
 SWEEP = [
     ("MISSING_SIGNAL_PENALTY", "0.05"),
@@ -43,6 +46,12 @@ SWEEP = [
     ("CRIT_TLS_PENALTY", "0.05"),
     ("CRIT_TLS_PENALTY", "0.4"),
     ("CRIT_TLS_PENALTY", "0.6"),
+    ("DEVICE_TLS_MISMATCH_PENALTY", "0.1"),
+    ("DEVICE_TLS_MISMATCH_PENALTY", "0.7"),
+    ("DEVICE_FRESHNESS_WINDOW_DAYS", "7"),
+    ("DEVICE_FRESHNESS_WINDOW_DAYS", "14"),
+    ("DEVICE_FRESHNESS_WINDOW_DAYS", "60"),
+    ("DEVICE_FRESHNESS_WINDOW_DAYS", "90"),
 ]
 
 

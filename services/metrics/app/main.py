@@ -2,9 +2,7 @@ from fastapi import FastAPI, Query
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
 import os
-import json
 from datetime import datetime
-from pathlib import Path
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 import logging
@@ -77,7 +75,7 @@ def calculate_security_metrics(hours: int = 24) -> Dict[str, Any]:
     """Calculate security-related metrics"""
     eng = get_engine()
     if eng is None:
-        return _get_mock_security_metrics()
+        return {"error": "database unavailable — no metrics to report"}
 
     try:
         with eng.connect() as conn:
@@ -152,7 +150,7 @@ def calculate_performance_metrics(hours: int = 24) -> Dict[str, Any]:
     """Calculate performance-related metrics"""
     eng = get_engine()
     if eng is None:
-        return _get_mock_performance_metrics()
+        return {"error": "database unavailable — no metrics to report"}
 
     try:
         with eng.connect() as conn:
@@ -206,7 +204,7 @@ def calculate_detection_metrics(hours: int = 24) -> Dict[str, Any]:
     """Calculate threat detection accuracy metrics"""
     eng = get_engine()
     if eng is None:
-        return _get_mock_detection_metrics()
+        return {"error": "database unavailable — no metrics to report"}
 
     try:
         with eng.connect() as conn:
@@ -277,7 +275,7 @@ def calculate_decision_metrics(hours: int = 24) -> Dict[str, Any]:
     """Calculate decision accuracy and effectiveness metrics"""
     eng = get_engine()
     if eng is None:
-        return _get_mock_decision_metrics()
+        return {"error": "database unavailable — no metrics to report"}
 
     try:
         with eng.connect() as conn:
@@ -350,132 +348,6 @@ def calculate_decision_metrics(hours: int = 24) -> Dict[str, Any]:
             }
     except Exception as e:
         return {"error": str(e)}
-
-def _load_mock_data() -> Dict[str, Any]:
-    """Load mock data from file if available"""
-    try:
-        # Try to find mock metrics file
-        possible_paths = [
-            Path(__file__).parent / "evaluation_results" / "mock_metrics.json",
-            Path(__file__).parent.parent.parent.parent / "scripts" / "evaluation" / "evaluation_results" / "mock_metrics.json",
-            Path("evaluation_results") / "mock_metrics.json",
-            Path("scripts/evaluation/evaluation_results/mock_metrics.json")
-        ]
-
-        for path in possible_paths:
-            if path.exists():
-                with open(path, 'r') as f:
-                    return json.load(f)
-
-        # Return default mock data if no file found
-        return _get_default_mock_data()
-    except Exception:
-        return _get_default_mock_data()
-
-def _get_default_mock_data() -> Dict[str, Any]:
-    """Return default mock data when file isn't available"""
-    return {
-        "summary": {
-            "total_events": 150,
-            "success_rate": 68.5,
-            "mfa_stepup_rate": 23.5,
-            "threat_detection_rate": 45.2,
-            "false_positive_rate": 8.3
-        },
-        "detailed_metrics": {
-            "security": {
-                "authentication_outcomes": {"success": 103, "failed": 25, "sent": 35},
-                "risk_distribution": {"low": 88, "medium": 42, "high": 20},
-                "enforcement_actions": [
-                    {"enforcement": "ALLOW", "count": 103, "avg_risk": 0.12},
-                    {"enforcement": "MFA_REQUIRED", "count": 35, "avg_risk": 0.58},
-                    {"enforcement": "DENY", "count": 12, "avg_risk": 0.87}
-                ]
-            }
-        }
-    }
-
-def _get_mock_security_metrics() -> Dict[str, Any]:
-    """Get mock security metrics"""
-    mock_data = _load_mock_data()
-    return mock_data.get("detailed_metrics", {}).get("security", {
-        "authentication_outcomes": {"success": 103, "failed": 25, "sent": 35},
-        "risk_distribution": {"low": 88, "medium": 42, "high": 20},
-        "enforcement_actions": [
-            {"enforcement": "ALLOW", "count": 103, "avg_risk": 0.12},
-            {"enforcement": "MFA_REQUIRED", "count": 35, "avg_risk": 0.58},
-            {"enforcement": "DENY", "count": 12, "avg_risk": 0.87}
-        ],
-        "stride_detections": [
-            {"stride": "Spoofing", "severity": "medium", "count": 8},
-            {"stride": "Tampering", "severity": "high", "count": 5},
-            {"stride": "Repudiation", "severity": "low", "count": 12},
-            {"stride": "Denial_of_Service", "severity": "high", "count": 3}
-        ]
-    })
-
-def _get_mock_performance_metrics() -> Dict[str, Any]:
-    """Get mock performance metrics"""
-    return {
-        "total_decisions": 150,
-        "signal_reliability": [
-            {"signal_type": "ip_geo", "occurrences": 145},
-            {"signal_type": "device_posture", "occurrences": 132},
-            {"signal_type": "wifi_bssid", "occurrences": 128},
-            {"signal_type": "gps", "occurrences": 140},
-            {"signal_type": "tls_fp", "occurrences": 95}
-        ],
-        "hourly_throughput": [
-            {"hour": "2025-01-17T10:00:00", "events": 25},
-            {"hour": "2025-01-17T11:00:00", "events": 32},
-            {"hour": "2025-01-17T12:00:00", "events": 28},
-            {"hour": "2025-01-17T13:00:00", "events": 35},
-            {"hour": "2025-01-17T14:00:00", "events": 30}
-        ],
-        "avg_throughput_per_hour": 30.0
-    }
-
-def _get_mock_detection_metrics() -> Dict[str, Any]:
-    """Get mock detection metrics"""
-    mock_data = _load_mock_data()
-    return mock_data.get("detailed_metrics", {}).get("detection", {
-        "threat_detection_by_label": [
-            {"original_label": "DDOS", "detected_threats": 2, "count": 8},
-            {"original_label": "WEB_ATTACK", "detected_threats": 1, "count": 12},
-            {"original_label": "BOT", "detected_threats": 3, "count": 6},
-            {"original_label": "BENIGN", "detected_threats": 0, "count": 45}
-        ],
-        "signal_quality": [
-            {"missing_signals": 0, "count": 65, "avg_threats_detected": 1.2},
-            {"missing_signals": 1, "count": 25, "avg_threats_detected": 0.8},
-            {"missing_signals": 2, "count": 10, "avg_threats_detected": 0.3}
-        ],
-        "cross_validation": [
-            {"gps_wifi_mismatch": True, "count": 15},
-            {"gps_wifi_mismatch": False, "count": 85}
-        ]
-    })
-
-def _get_mock_decision_metrics() -> Dict[str, Any]:
-    """Get mock decision metrics"""
-    mock_data = _load_mock_data()
-    return mock_data.get("detailed_metrics", {}).get("decision", {
-        "decision_distribution": [
-            {"decision": "allow", "count": 103, "avg_risk": 0.18, "min_risk": 0.0, "max_risk": 0.3},
-            {"decision": "step_up", "count": 35, "avg_risk": 0.54, "min_risk": 0.3, "max_risk": 0.7},
-            {"decision": "deny", "count": 12, "avg_risk": 0.83, "min_risk": 0.7, "max_risk": 1.0}
-        ],
-        "risk_decision_correlation": [
-            {"risk_category": "low_risk", "decision": "allow", "count": 88},
-            {"risk_category": "medium_risk", "decision": "step_up", "count": 42},
-            {"risk_category": "high_risk", "decision": "deny", "count": 20}
-        ],
-        "component_analysis": [
-            {"stride_component": "Spoofing", "decision": "step_up", "count": 12},
-            {"stride_component": "Tampering", "decision": "deny", "count": 8},
-            {"stride_component": "Denial_of_Service", "decision": "deny", "count": 5}
-        ]
-    })
 
 @api.on_event("startup")
 def _startup():

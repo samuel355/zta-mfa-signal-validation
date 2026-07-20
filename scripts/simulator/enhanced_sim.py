@@ -11,6 +11,7 @@ import asyncio
 from sqlalchemy import create_engine, text
 
 from country_centroids import COUNTRY_CENTROIDS
+from data_split import split_bucket, is_split_file
 
 # ------------------- Paths -------------------
 DATA_DIR      = os.getenv("DATA_DIR", "/app/data")
@@ -47,21 +48,14 @@ MIN_DEVICE = float(os.getenv("SIM_MIN_DEVICE", "0.85"))
 GPS_OFFSET_KM = float(os.getenv("SIM_GPS_OFFSET_KM","600"))
 
 # WiFi pool BSSIDs treated as the user's known/home access points. The pool
-# also contains several globally-scattered entries (Lagos, Nairobi, Cairo,
-# London, NYC, SF, Paris) for spoofing scenarios to draw from; without this
-# split, random.choice() across the whole pool assigned foreign APs to ~80%
-# of *benign* sessions too, making location_risk's benign-vs-malicious signal
-# almost meaningless (mean benign location_risk ended up 0.38, close to a
-# genuinely spoofed session's). HOME_BSSID_PCT controls how often a
-# non-spoof session draws from the home cluster instead of the full pool.
+# also contains globally-scattered entries for spoofing scenarios to draw
+# from; HOME_BSSID_PCT controls how often a non-spoof session draws from the
+# home cluster instead of the full pool.
 HOME_BSSIDS = {"00:11:22:33:44:55", "00:11:22:33:44:66"}
 HOME_BSSID_PCT = float(os.getenv("SIM_HOME_BSSID_PCT", "0.85"))
 
-# STRIDE class mix. These + P_BENIGN must leave room for genuinely benign traffic —
-# _setup_stride_buckets() normalizes whatever is passed to sum to 1.0, so if every
-# bucket here represents an injected anomaly, ground truth never contains a real
-# negative class and FPR becomes undefined. P_BENIGN reserves an explicit no-scenario
-# path that keeps each sample's real CIC-IDS2018 label untouched.
+# STRIDE class mix, normalized to sum to 1.0 with P_BENIGN. P_BENIGN reserves
+# an explicit no-scenario path that keeps the real CIC-IDS2018 label untouched.
 P_SPOOF   = float(os.getenv("SIM_PCT_SPOOFING","0.15"))
 P_TLS     = float(os.getenv("SIM_PCT_TLS_TAMPERING","0.12"))
 P_DOS     = float(os.getenv("SIM_PCT_DOS","0.18"))
@@ -69,10 +63,45 @@ P_EXFIL   = float(os.getenv("SIM_PCT_EXFIL","0.12"))
 P_EOP     = float(os.getenv("SIM_PCT_EOP","0.15"))
 P_REP     = float(os.getenv("SIM_PCT_REPUDIATION","0.08"))
 P_BENIGN  = float(os.getenv("SIM_PCT_BENIGN","0.20"))
+# Information Disclosure can be evaluated in two modes: "observable" builds a
+# documented synthetic exfiltration scenario; "native" draws real
+# CIC-IDS2018 Infiltration/Bot rows instead.
+EXFIL_MODE = os.getenv("SIM_EXFIL_MODE", "observable").strip().lower()
 
 # Fraction of "spoof" bucket samples sourced from real RBA account-takeover
 # ground truth rather than the synthetic CIC-IDS2018+WiFi-offset injection.
 RBA_SPOOF_PCT = float(os.getenv("SIM_RBA_SPOOF_PCT", "0.5"))
+
+# Of the remaining (non-RBA) "spoof" bucket samples, fraction sourced from a
+# real native credential-stuffing row rather than a synthetic injection.
+CREDENTIAL_NATIVE_PCT = float(os.getenv("SIM_CREDENTIAL_NATIVE_PCT", "0.3"))
+
+# Fixes session sampling, signal presence, and scenario injection for reproducibility.
+SIM_RANDOM_SEED = int(os.getenv("SIM_RANDOM_SEED", "20260720"))
+random.seed(SIM_RANDOM_SEED)
+
+# The CIC-IDS2018 per-flow columns the trained classifiers
+# (scripts/train_dos_eop_classifiers.py) were fit on — must match that
+# script's EXCLUDE/ARTIFACT_PRONE sets exactly.
+NETWORK_FLOW_FEATURES = [
+    "Dst Port", "Protocol", "Flow Duration", "Tot Fwd Pkts", "Tot Bwd Pkts",
+    "TotLen Fwd Pkts", "TotLen Bwd Pkts", "Fwd Pkt Len Max", "Fwd Pkt Len Min",
+    "Fwd Pkt Len Mean", "Fwd Pkt Len Std", "Bwd Pkt Len Max", "Bwd Pkt Len Min",
+    "Bwd Pkt Len Mean", "Bwd Pkt Len Std", "Flow Byts/s", "Flow Pkts/s",
+    "Flow IAT Mean", "Flow IAT Std", "Flow IAT Max", "Flow IAT Min",
+    "Fwd IAT Tot", "Fwd IAT Mean", "Fwd IAT Std", "Fwd IAT Max", "Fwd IAT Min",
+    "Bwd IAT Tot", "Bwd IAT Mean", "Bwd IAT Std", "Bwd IAT Max", "Bwd IAT Min",
+    "Fwd PSH Flags", "Bwd PSH Flags", "Fwd URG Flags", "Bwd URG Flags",
+    "Fwd Pkts/s", "Bwd Pkts/s", "Pkt Len Min", "Pkt Len Max", "Pkt Len Mean",
+    "Pkt Len Std", "Pkt Len Var", "FIN Flag Cnt", "SYN Flag Cnt",
+    "RST Flag Cnt", "PSH Flag Cnt", "ACK Flag Cnt", "URG Flag Cnt",
+    "CWE Flag Count", "ECE Flag Cnt", "Down/Up Ratio", "Pkt Size Avg",
+    "Fwd Seg Size Avg", "Bwd Seg Size Avg", "Fwd Byts/b Avg", "Fwd Pkts/b Avg",
+    "Fwd Blk Rate Avg", "Bwd Byts/b Avg", "Bwd Pkts/b Avg", "Bwd Blk Rate Avg",
+    "Subflow Fwd Pkts", "Subflow Fwd Byts", "Subflow Bwd Pkts",
+    "Subflow Bwd Byts", "Fwd Act Data Pkts", "Active Mean", "Active Std",
+    "Active Max", "Active Min", "Idle Mean", "Idle Std", "Idle Max", "Idle Min",
+]
 
 class EnhancedSimulator:
     """Enhanced simulator matching original sim.py logic with baseline comparison"""
@@ -82,6 +111,8 @@ class EnhancedSimulator:
         self.tls_pool = []
         self.dev_pool = []
         self.cic2018_rows = []
+        self.native_pools = {}
+        self.benign_rows = []
         self.rba_attack_rows = []
         self.rba_benign_rows = []
         self.stride_buckets = []
@@ -144,12 +175,43 @@ class EnhancedSimulator:
             print(f"[DATA] Failed to read {path}: {e}")
             return []
 
+    def _read_tls_csv(self, path):
+        """ja3_fingerprints.csv's "ja3" field is itself comma-separated and
+        unquoted, so a plain csv.DictReader against the 2-column "ja3,tag"
+        header truncates every row to its first two raw fields and collides
+        every entry on "771". Parse by hand: last comma-separated field is
+        the real tag, everything before it (rejoined) is the real ja3 string
+        — matches services/validation/app/enrichment.py's _load_tls."""
+        try:
+            with open(path) as f:
+                lines = [ln.rstrip("\n") for ln in f if ln.strip()]
+        except Exception as e:
+            print(f"[DATA] Failed to read {path}: {e}")
+            return []
+        rows = []
+        for line in lines[1:]:
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) < 2: continue
+            ja3, tag = ",".join(parts[:-1]), parts[-1]
+            if ja3: rows.append({"ja3": ja3, "tag": tag})
+        return rows
+
     def _list_csvs(self, dirpath):
         """List all CSV files in directory"""
         try:
-            return [os.path.join(dirpath, f) for f in os.listdir(dirpath) if f.endswith(".csv")]
+            return [os.path.join(dirpath, f) for f in sorted(os.listdir(dirpath)) if f.endswith(".csv")]
         except Exception:
             return []
+
+    @staticmethod
+    def _reservoir_add(pool, row, seen, limit):
+        """Keep an unbiased, bounded sample from a streaming population."""
+        if len(pool) < limit:
+            pool.append(row)
+            return
+        replacement = random.randrange(seen)
+        if replacement < limit:
+            pool[replacement] = row
 
     def _load_data(self):
         """Load all data pools (matching original sim.py)"""
@@ -163,7 +225,7 @@ class EnhancedSimulator:
 
         # Load TLS pool
         try:
-            self.tls_pool = self._read_csv(TLS_CSV)
+            self.tls_pool = self._read_tls_csv(TLS_CSV)
             print(f"[DATA] Loaded {len(self.tls_pool)} TLS samples")
         except Exception as e:
             print(f"[DATA] Failed to load TLS data: {e}")
@@ -175,38 +237,74 @@ class EnhancedSimulator:
         except Exception as e:
             print(f"[DATA] Failed to load device data: {e}")
 
-        # Load CIC-IDS2018 data
+        # Load CIC-IDS2018 data, categorized by each row's real label — never
+        # relabeled to match whichever bucket it was drawn for. Native
+        # categories map onto the dataset's attack-campaign days (02-14
+        # Bruteforce, 02-15 DoS, 02-22 Web-Attack/SQLi/XSS, 02-28
+        # Infiltration); classified by label text so it stays correct if more
+        # days are added later.
         cic_files = self._list_csvs(CIC2018_DIR)
         if not cic_files:
             print(f"[DATA] No CIC-IDS2018 files in {CIC2018_DIR}")
             return
 
-        rows = []
+        self.native_pools: Dict[str, list] = {
+            "dos_native": [], "eop_native": [], "exfil_native": [], "credential_native": [], "other_native": [],
+        }
+        benign_rows = []
+        category_seen = {name: 0 for name in self.native_pools}
+        benign_seen = 0
+        benign_limit = MAX_PER_FILE * max(1, len(cic_files))
         for f in cic_files:
             try:
-                r = self._read_csv(f)
-                random.shuffle(r)
-                attacks, benign = [], []
-                for x in r:
-                    lab = (x.get("Label") or x.get(" Label") or "").strip().upper()
-                    if lab == "BENIGN":
-                        if random.random() < BENIGN_KEEP:
-                            benign.append(x)
-                    else:
-                        attacks.append(x)
-                # Reserve slots for benign rows explicitly — attacks alone
-                # usually blow past MAX_PER_FILE in these CIC-IDS2018 files,
-                # so we need to guarantee some negative-class data survives
-                # for FPR/TNR to mean anything.
-                n_benign_slots = int(MAX_PER_FILE * 0.30)
-                n_attack_slots = MAX_PER_FILE - n_benign_slots
-                rows.extend(attacks[:n_attack_slots] + benign[:n_benign_slots])
+                # For files a classifier was trained on, only draw from the
+                # "test" split (scripts/simulator/data_split.py) so no row a
+                # model trained/tuned on can leak into live evaluation.
+                restrict = is_split_file(f)
+                with open(f, newline="") as handle:
+                    for row_index, x in enumerate(csv.DictReader(handle)):
+                        if restrict and split_bucket(row_index) != "test":
+                            continue
+                        lab = (x.get("Label") or x.get(" Label") or "").strip().upper()
+                        if not lab or lab == "LABEL":
+                            continue
+                        if lab == "BENIGN":
+                            if random.random() < BENIGN_KEEP:
+                                benign_seen += 1
+                                self._reservoir_add(benign_rows, x, benign_seen, benign_limit)
+                            continue
+                        cat = self._classify_native_label(lab)
+                        category_seen[cat] += 1
+                        self._reservoir_add(
+                            self.native_pools[cat], x, category_seen[cat], MAX_PER_FILE
+                        )
             except Exception as e:
                 print(f"[DATA] Failed to process {f}: {e}")
 
-        random.shuffle(rows)
-        self.cic2018_rows = rows
-        print(f"[DATA] Loaded {len(self.cic2018_rows)} CIC-IDS2018 samples")
+        random.shuffle(benign_rows)
+        self.benign_rows = benign_rows
+        for cat, pool in self.native_pools.items():
+            print(f"[DATA] Loaded {len(pool)} native '{cat}' samples (real label, unmodified)")
+        print(f"[DATA] Loaded {len(self.benign_rows)} real Benign samples")
+
+        # Kept for other scripts that need a generic pool of real rows to sample from.
+        self.cic2018_rows = [x for pool in self.native_pools.values() for x in pool] + benign_rows
+        random.shuffle(self.cic2018_rows)
+        print(f"[DATA] Loaded {len(self.cic2018_rows)} CIC-IDS2018 samples total")
+
+    @staticmethod
+    def _classify_native_label(lab: str) -> str:
+        """Maps a real CIC-IDS2018 label to this simulator's native pool —
+        decides which pool a row is stored in, never changes the label itself."""
+        if "DOS" in lab or "DDOS" in lab:
+            return "dos_native"
+        if "SQL INJECTION" in lab or "WEB" in lab or "XSS" in lab:
+            return "eop_native"
+        if "INFIL" in lab or "BOT" in lab:
+            return "exfil_native"
+        if "BRUTEFORCE" in lab or "BRUTE FORCE" in lab:
+            return "credential_native"
+        return "other_native"
 
     def _load_rba_data(self):
         """Load the RBA (Risk-Based Authentication) stream-sampled subset —
@@ -302,7 +400,7 @@ class EnhancedSimulator:
         dlon = (km / (111.0 * max(0.15, cos(radians(lat))))) * (1 if random.random() < 0.5 else -1)
         return lat + (dlat if random.random() < 0.5 else -dlat), lon + dlon
 
-    def _pick_tls_row(self, pool, bad_only=False):
+    def _pick_tls_row(self, pool, bad_only=False, clean_only=False):
         """Pick TLS row with weighting (matching original logic)"""
         if not pool:
             return None
@@ -313,6 +411,10 @@ class EnhancedSimulator:
         if bad_only:
             bad = [r for r in pool if (r.get("tag") or r.get("Tag") or "").strip().lower() in badtags]
             return random.choice(bad) if bad else None
+
+        if clean_only:
+            clean = [r for r in pool if (r.get("tag") or r.get("Tag") or "").strip().lower() not in badtags]
+            return random.choice(clean) if clean else None
 
         weights = []
         for r in pool:
@@ -346,13 +448,8 @@ class EnhancedSimulator:
         if "ip_geo" not in sig:
             sig["ip_geo"] = {"ip": f"192.0.2.{random.randint(1, 254)}"}
 
-        # wifi + gps
-        # This floor mainly fires for buckets that never set wifi_bssid via
-        # _make_spoofing (i.e. not the CIC-IDS2018-based spoof path) — safe to
-        # use the same home-weighted selection as normal traffic. Guarded on
-        # "gps" too so it never clobbers a GPS already set by another source
-        # (e.g. _make_spoofing_from_rba's country-centroid GPS, which has no
-        # corresponding WiFi AP to report).
+        # wifi + gps — guarded on "gps" too so it never clobbers a GPS already
+        # set by another source (e.g. _make_spoofing_from_rba's country centroid).
         if "wifi_bssid" not in sig and "gps" not in sig and self.wifi_pool:
             w = self._pick_wifi_row(force_foreign=False)
             b = w.get("bssid") or w.get("BSSID")
@@ -373,12 +470,9 @@ class EnhancedSimulator:
             if r and (r.get("ja3") or r.get("JA3")):
                 sig["tls_fp"] = {"ja3": r.get("ja3") or r.get("JA3")}
 
-        # device
-        if "device_posture" not in sig and self.dev_pool:
-            d = random.choice(self.dev_pool)
-            dev_id = d.get("device_id") or d.get("Device_ID") or d.get("deviceId") or f"dev-{random.randint(1, 999)}"
-            patched = str(d.get("patched", "true")).strip().lower() == "true"
-            sig["device_posture"] = {"device_id": str(dev_id), "patched": patched}
+        # device — deliberately not backfilled here. run_simulation()'s dev_row
+        # selection (gated on MIN_DEVICE) is the sole decision on whether a
+        # session has a device signal at all.
 
     def _make_spoofing(self, sig):
         """Create spoofing scenario (matching original logic)"""
@@ -404,10 +498,7 @@ class EnhancedSimulator:
     def _mk_signals(self, row, wifi_row, tls_row, dev_row) -> Dict[str, Any]:
         """Create signal from data sources (matching original logic)"""
         sig = {}
-        # uuid4 so collisions are basically impossible — everything downstream
-        # joins on session_id (per-STRIDE breakdown, McNemar's test), and a
-        # collision would quietly merge two unrelated sessions into one
-        # paired comparison.
+        # uuid4 so collisions are basically impossible — everything downstream joins on session_id.
         sig["session_id"] = f"sess-{uuid.uuid4().hex[:12]}"
 
         # Label from CIC-IDS2018
@@ -419,6 +510,22 @@ class EnhancedSimulator:
         src_ip = self._get_src_ip(row)
         if src_ip:
             sig["ip_geo"] = {"ip": src_ip}
+
+        # Real per-flow network telemetry (not the Label column) — what the
+        # trained classifiers score on. Gated on "Flow Duration" so
+        # RBA-derived rows (no flow columns) don't get an all-zero dict.
+        if row.get("Flow Duration") not in (None, ""):
+            nf = {}
+            for feat in NETWORK_FLOW_FEATURES:
+                v = row.get(feat)
+                try:
+                    fv = float(v)
+                    if fv != fv or fv in (float("inf"), float("-inf")):  # NaN/inf guard
+                        fv = 0.0
+                except (TypeError, ValueError):
+                    fv = 0.0
+                nf[feat] = fv
+            sig["network_flow"] = nf
 
         # WiFi data
         if wifi_row:
@@ -453,19 +560,13 @@ class EnhancedSimulator:
     def _apply_stride_scenario(self, sig, bucket):
         """Apply STRIDE scenario to signal (matching original logic)"""
         if bucket == "spoof":
-            # Mix real RBA-sourced credential-stuffing/account-takeover ground
-            # truth with the original CIC-IDS2018+WiFi-offset synthetic
-            # injection, rather than fully replacing it — the Spoofing category
-            # gets evaluated against both a genuine real-world attack signal
-            # and the existing geographic-mismatch signal.
+            # Mix real RBA-sourced account-takeover ground truth with the
+            # synthetic CIC-IDS2018+WiFi-offset injection.
             if self.rba_attack_rows and random.random() < RBA_SPOOF_PCT:
                 self._make_spoofing_from_rba(sig)
                 sig["label"] = "SPOOFING_INJECTED_RBA"
             else:
                 self._make_spoofing(sig)
-                # Ground truth must reflect that a real anomaly was injected (GPS/WiFi
-                # mismatch) — labeling this "BENIGN" penalized any framework that
-                # correctly detects the mismatch it was deliberately built to catch.
                 sig["label"] = "SPOOFING_INJECTED"
 
         elif bucket == "tls":
@@ -474,29 +575,33 @@ class EnhancedSimulator:
                 sig["tls_fp"] = {"ja3": bad.get("ja3")}
                 sig["label"] = "HEARTBLEED"
             else:
-                # fallback: still mark as TLS anomaly
                 sig["label"] = "HEARTBLEED"
 
-        elif bucket == "dos":
-            sig["label"] = "DDOS"
-
         elif bucket == "exfil":
-            sig["label"] = "INFILTRATION"
+            # Observable, session-level Information Disclosure scenario — the
+            # evidence a DLP/network-monitoring integration would expose.
+            baseline = random.randint(400_000, 1_200_000)
+            outbound = baseline * random.randint(25, 80)
+            sig["exfiltration_telemetry"] = {
+                "outbound_bytes": outbound,
+                "baseline_outbound_bytes": baseline,
+                "destination_is_new": True,
+                "sensitive_data_accessed": True,
+                "dlp_alert": True,
+                "connections_last_5m": random.randint(20, 80),
+            }
+            sig["label"] = "EXFILTRATION_INJECTED"
 
-        elif bucket == "eop":
-            sig["label"] = "WEB ATTACK"
+        # "dos"/"eop" don't land here: run_simulation() sources those buckets
+        # from real, correctly-labelled native rows directly.
 
         elif bucket == "rep":
-            # Same fix as "spoof": a repudiation signal is deliberately injected,
-            # so ground truth must not say "BENIGN".
             sig["label"] = "REPUDIATION_INJECTED"
             sig["repudiation"] = True
 
         elif bucket == "benign":
-            # No scenario applied — leave the signal, and the real CIC-IDS2018
-            # label _mk_signals already set, untouched. This is the only path
-            # that produces genuine negative-class ground truth; without it every
-            # sample gets some synthetic anomaly and FPR/TNR are undefined.
+            # No scenario applied — the real CIC-IDS2018 label from
+            # _mk_signals is left untouched.
             pass
 
     async def _call_proposed_framework(self, client, sig):
@@ -709,19 +814,18 @@ class EnhancedSimulator:
         print(f"[SIM] Jimmy2025  : {JIMMY_URL}")
         print(f"[SIM] Phani2025  : {PHANI_URL}")
 
-        comparison_id = f"comp-{int(time.time())}"
+        comparison_id = os.getenv("SIM_COMPARISON_ID") or f"comp-{uuid.uuid4().hex}"
         sent = 0
         successful_comparisons = 0
 
         async with httpx.AsyncClient(timeout=60.0) as client:
-            for row in self.cic2018_rows:
-                if sent >= max_samples:
-                    break
-
+            while sent < max_samples:
                 try:
-                    # Assign STRIDE bucket first — WiFi selection below depends on
-                    # whether this session is a spoof scenario (forces a foreign AP)
-                    # or normal traffic (weighted toward the home cluster).
+                    # Assign STRIDE bucket first, then pick the row it needs. A "dos"
+                    # bucket pulls from real DoS-labelled rows and reports their real
+                    # label; only bucket="spoof"/"tls"/"rep" construct a synthetic
+                    # scenario on top of a genuinely Benign row, since CIC-IDS2018 has
+                    # no native representation for those three categories.
                     r = random.random()
                     bucket = "spoof"
                     for edge, k in self.stride_buckets:
@@ -729,27 +833,60 @@ class EnhancedSimulator:
                             bucket = k
                             break
 
+                    row = None
+                    native_passthrough = False
+                    force_foreign = False
+
+                    if bucket in ("dos", "eop") or (bucket == "exfil" and EXFIL_MODE == "native"):
+                        pool_name = {"dos": "dos_native", "exfil": "exfil_native", "eop": "eop_native"}[bucket]
+                        pool = self.native_pools.get(pool_name) or []
+                        if pool:
+                            row = random.choice(pool)
+                            native_passthrough = True
+                        else:
+                            # No real rows in this category — fall back to a
+                            # benign pass-through instead of inventing a label.
+                            bucket = "benign"
+
+                    elif bucket == "spoof" and self.native_pools.get("credential_native") and random.random() < CREDENTIAL_NATIVE_PCT:
+                        # A real credential-stuffing attack is itself a legitimate
+                        # Spoofing-adjacent case — pass it through under its own real label.
+                        row = random.choice(self.native_pools["credential_native"])
+                        native_passthrough = True
+
+                    if row is None:
+                        row = random.choice(self.benign_rows) if self.benign_rows else None
+                        force_foreign = (bucket == "spoof")
+
+                    if row is None:
+                        print("[SIM] No rows available (native pools and benign pool both empty), stopping")
+                        break
+
                     # Select data sources (matching original logic)
-                    wifi_row = self._pick_wifi_row(force_foreign=(bucket == "spoof"))
-                    tls_row = self._pick_tls_row(self.tls_pool, bad_only=False) if self.tls_pool else None
-                    dev_row = random.choice(self.dev_pool) if self.dev_pool else None
+                    wifi_row = self._pick_wifi_row(force_foreign=force_foreign)
+                    # Keep the negative class internally consistent: critical
+                    # JA3 fingerprints are assigned only by the TLS scenario.
+                    tls_row = self._pick_tls_row(self.tls_pool, clean_only=True) if self.tls_pool else None
+                    # Withholding a device row for (1 - MIN_DEVICE) of sessions is
+                    # independent of ground truth — a genuine "unrecognized device"
+                    # case, not a label-correlated signal.
+                    dev_row = random.choice(self.dev_pool) if self.dev_pool and random.random() < MIN_DEVICE else None
 
                     # Create base signal
                     sig = self._mk_signals(row, wifi_row, tls_row, dev_row)
 
-                    # Apply STRIDE scenario
-                    self._apply_stride_scenario(sig, bucket)
+                    # Apply STRIDE scenario — skipped entirely for a native pass-through,
+                    # whose real label (set by _mk_signals from `row` above) must not be touched.
+                    if not native_passthrough:
+                        self._apply_stride_scenario(sig, bucket)
 
                     # Ensure minimum data presence
                     self._ensure_floors(sig)
 
-                    print(f"[SIM] Processing sample {sent+1}/{max_samples} - {sig['session_id']} (bucket: {bucket})")
+                    tag = f"{bucket}, native" if native_passthrough else bucket
+                    print(f"[SIM] Processing sample {sent+1}/{max_samples} - {sig['session_id']} (bucket: {tag})")
 
-                    # Call all frameworks concurrently
-                    # NOTE: Jimmy (2025) CAMFA excluded from active comparison — its source
-                    # paper publishes no risk-scoring formula, so re-implementation required
-                    # reconstruction rather than reproduction. Retained as related work in
-                    # the literature review only. Service (jimmy2025) stays deployed but idle.
+                    # Jimmy (2025) excluded — no published risk-scoring formula to reproduce.
                     results = await asyncio.gather(
                         self._call_proposed_framework(client, sig),
                         self._call_baseline_framework(client, sig),
@@ -775,15 +912,19 @@ class EnhancedSimulator:
                             else:
                                 extra_results.append(res)
 
-                    any_result = proposed_result or baseline_result or extra_results
-                    if any_result:
+                    complete_pair = (
+                        proposed_result is not None
+                        and baseline_result is not None
+                        and len(extra_results) == 2
+                    )
+                    if complete_pair:
                         self._store_comparison_data(comparison_id, proposed_result, baseline_result, sig, extra_results)
                         successful_comparisons += 1
                         for label, res in zip(labels, results):
                             if isinstance(res, dict):
                                 print(f"[SIM]   {label:12s}: {res.get('decision','?'):8s} risk={res.get('risk_score',0):.3f}")
                     else:
-                        print(f"[SIM]   All frameworks failed for {sig.get('session_id', 'unknown')}")
+                        print(f"[SIM]   Incomplete framework quartet for {sig.get('session_id', 'unknown')}; not persisted")
 
                     # Sleep between requests
                     await asyncio.sleep(sleep_time)

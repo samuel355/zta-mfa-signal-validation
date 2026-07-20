@@ -1,0 +1,121 @@
+{
+  "comparison_id": "final-20260720-seed20260720-v1",
+  "generated_at": "2026-07-20T01:18:21.740062+00:00",
+  "git_commit": "fa00ca6838956e61b3e43da3f7086dee50040a7c",
+  "working_tree_diff_sha256": "789aef54a8a197e02ee115e90dc8b6bf06e65b20dbbaa8cfadc1b84512072386",
+  "working_tree_dirty": true,
+  "pairing": {
+    "sessions": 1016,
+    "complete_sessions": 1016
+  },
+  "frameworks": [
+    {
+      "framework_type": "ablation",
+      "rows": 1016,
+      "sessions": 1016,
+      "started_at": "2026-07-20 00:42:57.749590+00:00",
+      "ended_at": "2026-07-20 01:10:19.144610+00:00"
+    },
+    {
+      "framework_type": "ahmadi2025",
+      "rows": 1016,
+      "sessions": 1016,
+      "started_at": "2026-07-20 00:42:57.749590+00:00",
+      "ended_at": "2026-07-20 01:10:19.144610+00:00"
+    },
+    {
+      "framework_type": "phani2025",
+      "rows": 1016,
+      "sessions": 1016,
+      "started_at": "2026-07-20 00:42:57.749590+00:00",
+      "ended_at": "2026-07-20 01:10:19.144610+00:00"
+    },
+    {
+      "framework_type": "proposed",
+      "rows": 1016,
+      "sessions": 1016,
+      "started_at": "2026-07-20 00:42:57.749590+00:00",
+      "ended_at": "2026-07-20 01:10:19.144610+00:00"
+    }
+  ],
+  "configuration": {
+    "ALLOW_T": "0.24",
+    "DENY_T": "0.75",
+    "SIEM_HIGH_BUMP": "0.30",
+    "SIEM_MED_BUMP": "0.15",
+    "TRUST_BASE_GAIN": "0.02",
+    "TRUST_FALLBACK_OBSERVED": "0.05",
+    "VALIDATION_CONFIDENCE_THRESHOLD": "0.70",
+    "DIST_THRESHOLD_KM": "100",
+    "TLS_CRITICAL_TAGS": "tor_suspect,malware_family_x,scanner_tool,cloud_proxy,old_openssl,insecure_client,honeypot_fingerprint",
+    "MISSING_SIGNAL_PENALTY": "0.3",
+    "GEO_MISMATCH_PENALTY": "0.5",
+    "CRIT_TLS_PENALTY": "0.2",
+    "DEVICE_TLS_MISMATCH_PENALTY": "0.4",
+    "DEVICE_FRESHNESS_WINDOW_DAYS": "30",
+    "SIM_RANDOM_SEED": "20260720",
+    "SIM_MAX_PER_FILE": "800",
+    "SIM_BENIGN_KEEP": "0.25",
+    "SIM_MIN_WIFI": "0.92",
+    "SIM_MIN_GPS": "0.85",
+    "SIM_MIN_TLS": "0.70",
+    "SIM_MIN_DEVICE": "0.85",
+    "SIM_GPS_OFFSET_KM": "600",
+    "SIM_PCT_SPOOFING": "0.15",
+    "SIM_RBA_SPOOF_PCT": "0.5",
+    "SIM_PCT_TLS_TAMPERING": "0.12",
+    "SIM_PCT_DOS": "0.18",
+    "SIM_PCT_EXFIL": "0.12",
+    "SIM_PCT_EOP": "0.15",
+    "SIM_PCT_REPUDIATION": "0.08",
+    "SIM_PCT_BENIGN": "0.20"
+  },
+  "artifacts": {
+    "datasets/cic2018/02-14-2018.csv": {
+      "bytes": 358223333,
+      "sha256": "acff8bc61376ee031d80878ee6099e0b1a87a1bd711d8068298421418c9f8147"
+    },
+    "datasets/cic2018/02-15-2018.csv": {
+      "bytes": 375945899,
+      "sha256": "fa2947a8256d81ee9103ae16139d62d0e17aa23e696ee80d9e76fb51c01c9c4b"
+    },
+    "datasets/cic2018/02-22-2018.csv": {
+      "bytes": 382636202,
+      "sha256": "da33c927018274f9d49b145baa00e4ce0526c25b3b890b34c489e247b5e24544"
+    },
+    "datasets/cic2018/02-28-2018.csv": {
+      "bytes": 209249758,
+      "sha256": "f15e2a12304446058a0186c8ad67de2bd15735a9ba5c70c9a1f4c4242ab06771"
+    },
+    "data/rba/rba_sample.csv": {
+      "bytes": 4727030,
+      "sha256": "913a7841fb735e42f56c446e66e8e766e1ea847243e2d0018c2168e8ae04271f"
+    },
+    "data/wifi/wigle_sample.csv": {
+      "bytes": 349,
+      "sha256": "422133faaa3f77a8080601b11de9c539cb4894a82e6f93d2ac96686f295e37de"
+    },
+    "data/device_posture/device_posture.csv": {
+      "bytes": 618,
+      "sha256": "aa7d00385ee489f3ff9258572082119c53a795901cfe737c4dee934d9a002135"
+    },
+    "data/tls/ja3_fingerprints.csv": {
+      "bytes": 744,
+      "sha256": "7db0ab0b87acc658813edae4363e4b6f127dc5e51f5d0b46ffd8acf5cee250e4"
+    },
+    "services/validation/models/dos_classifier.joblib": {
+      "bytes": 4571919,
+      "sha256": "2757ed82ae9107ba260b9ef6cee8af6685fe1a077db7b184b19ed92c74a44b26"
+    },
+    "services/validation/models/eop_classifier.joblib": {
+      "bytes": 1540878,
+      "sha256": "f50d4ac2a3a632f3d2ec808fa52c416167b52a9b1731e51367b8f4b27999a11f"
+    }
+  },
+  "notes": [
+    "Ground-truth labels are used only for post-decision evaluation.",
+    "DoS/EoP live evaluation rows use the deterministic held-out test split.",
+    "Jimmy (2025) is excluded because no reproducible scoring equation is published.",
+    "Network-condition metrics were not rerun for this comparison ID."
+  ]
+}

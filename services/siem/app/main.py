@@ -68,17 +68,29 @@ def _warm_pool(engine: Engine, n: int):
             c.close()
 
 # ----- STRIDE mapping from reasons -----
+# Fixed priority order, not "first matching branch wins" — POSTURE_OUTDATED
+# and TLS_ANOMALY are incidental (can co-occur with any scenario), while
+# REPUDIATION, DOS, and the GPS/WIFI mismatch pair are deliberate,
+# scenario-defining signals and take priority.
+_STRIDE_PRIORITY = [
+    ("REPUDIATION", "Repudiation"),
+    ("DOS", "DoS"),
+    ("GPS_MISMATCH", "Spoofing"),
+    ("WIFI_MISMATCH", "Spoofing"),
+    ("POLICY_ELEVATION", "EoP"),
+    ("DOWNLOAD_EXFIL", "InformationDisclosure"),
+    ("TLS_ANOMALY", "Tampering"),
+    ("POSTURE_OUTDATED", "Tampering"),
+]
+
 def stride_from_reasons(reasons: List[str]) -> Optional[str]:
     """Maps risk reasons to zta.siem_alerts.stride values. Must match the DB CHECK
     constraint exactly: Spoofing, Tampering, Repudiation, InformationDisclosure, DoS, EoP.
     Returns None for benign/no-STRIDE-relevant sessions — these are not alert-worthy."""
-    R=set((r or "").upper() for r in reasons)
-    if {"GPS_MISMATCH","WIFI_MISMATCH"} & R: return "Spoofing"
-    if "TLS_ANOMALY" in R or "POSTURE_OUTDATED" in R: return "Tampering"
-    if "DOS" in R: return "DoS"
-    if "POLICY_ELEVATION" in R: return "EoP"
-    if "DOWNLOAD_EXFIL" in R: return "InformationDisclosure"
-    if "REPUDIATION" in R: return "Repudiation"
+    R = set((r or "").upper() for r in reasons)
+    for reason_code, category in _STRIDE_PRIORITY:
+        if reason_code in R:
+            return category
     return None
 
 def severity_from_risk(risk: float, decision: str, enforcement: str) -> str:

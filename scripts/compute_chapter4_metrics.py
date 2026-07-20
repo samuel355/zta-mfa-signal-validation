@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
 """
-Compute real Chapter 4 metrics from the live comparison database.
+Compute Chapter 4 metrics from the live comparison database.
 
-Replaces every hardcoded number in generate_chapter4_figures.py with a value
-derived from actual simulation runs. Excludes Jimmy (2025) — no published
-formula, excluded from the head-to-head baseline comparison (see thesis 3.4.1).
-
-Excludes a small warm-up window per framework (first-request cold-start DB
-connections skew raw means) — standard benchmarking practice; steady-state
-median/p95 are unaffected either way.
+Excludes Jimmy (2025) — no published formula, so it's excluded from the
+head-to-head baseline comparison. Excludes a small warm-up window per
+framework (first-request cold-start DB connections skew raw means).
 
 Usage: python3 scripts/compute_chapter4_metrics.py
 Writes: scripts/chapter4_metrics.json
 """
 import json
+import math
 import os
 from statistics import median
 
@@ -23,6 +20,8 @@ import psycopg2.extras
 DSN = os.environ["DB_DSN"]  # no hardcoded fallback — set via compose/.env, never commit real credentials
 WARMUP_N = 5  # first N rows per framework excluded (cold-start connection setup)
 FRAMEWORKS = ["proposed", "ablation", "ahmadi2025", "phani2025"]  # Jimmy excluded
+
+RUN_ID = os.environ.get("METRICS_COMPARISON_ID")
 
 STRIDE_LABELS = {
     "Spoofing": "Spoofing",
@@ -38,6 +37,27 @@ def _connect():
     return psycopg2.connect(DSN, connect_timeout=15, cursor_factory=psycopg2.extras.RealDictCursor)
 
 
+def resolve_run_id(conn):
+    """Use an explicitly selected run, or the latest complete four-framework run."""
+    if RUN_ID:
+        return RUN_ID
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT comparison_id
+            FROM zta.framework_comparison
+            WHERE framework_type = ANY(%s)
+            GROUP BY comparison_id
+            HAVING COUNT(DISTINCT framework_type) = %s
+               AND COUNT(*) = COUNT(DISTINCT session_id || ':' || framework_type)
+            ORDER BY MAX(created_at) DESC
+            LIMIT 1
+        """, (FRAMEWORKS, len(FRAMEWORKS)))
+        row = cur.fetchone()
+    if not row:
+        raise RuntimeError("No complete paired four-framework experiment found")
+    return row["comparison_id"]
+
+
 def _percentile(sorted_vals, pct):
     if not sorted_vals:
         return 0.0
@@ -48,29 +68,29 @@ def _percentile(sorted_vals, pct):
     return sorted_vals[f] + (sorted_vals[c] - sorted_vals[f]) * (k - f)
 
 
-def latency_stats(conn):
+def _wilson(successes, total, z=1.959963984540054):
+    if total <= 0:
+        return [None, None]
+    p = successes / total
+    denominator = 1 + z * z / total
+    centre = (p + z * z / (2 * total)) / denominator
+    margin = z * math.sqrt((p * (1 - p) + z * z / (4 * total)) / total) / denominator
+    return [round(max(0.0, centre - margin), 4), round(min(1.0, centre + margin), 4)]
+
+
+def latency_stats(conn, run_id):
     out = {}
     with conn.cursor() as cur:
         for fw in FRAMEWORKS:
             cur.execute("""
                 SELECT processing_time_ms FROM zta.framework_comparison
-                WHERE framework_type = %s ORDER BY id
-            """, (fw,))
+                WHERE framework_type = %s AND comparison_id = %s ORDER BY id
+            """, (fw, run_id))
             vals = [r["processing_time_ms"] for r in cur.fetchall()]
             skip = WARMUP_N
-            # One-time documented infrastructure incident: Docker Desktop crashed
-            # mid-session and was restarted; Elasticsearch was still recovering
-            # (yellow cluster status, 8 unassigned shards, near its 2GB memory
-            # cap) for the first ~1600 samples of this collection run, which
-            # synchronously blocks on ES writes in validation/gateway ("proposed"
-            # only — baselines never touch ES, and their latency was unaffected
-            # throughout). Verified the post-recovery tail (520.8ms avg, 47ms
-            # median) matches a separate clean run collected earlier this session
-            # (521.7ms avg, 42ms median) almost exactly, confirming this is the
-            # real steady-state figure and the elevated prefix was a one-time
-            # artifact, not a property of the framework itself.
-            if fw == "proposed" and len(vals) > 1600:
-                skip = 1600
+            # A cold-start artifact (e.g. ES shard allocation after a container
+            # rebuild) can inflate a long prefix beyond the standard warm-up
+            # window — inspect the raw sequence before trusting this blindly.
             warm = sorted(vals[skip:]) if len(vals) > skip else sorted(vals)
             out[fw] = {
                 "n": len(warm),
@@ -82,14 +102,14 @@ def latency_stats(conn):
     return out
 
 
-def decision_distribution(conn):
+def decision_distribution(conn, run_id):
     out = {}
     with conn.cursor() as cur:
         for fw in FRAMEWORKS:
             cur.execute("""
                 SELECT decision, COUNT(*) as c FROM zta.framework_comparison
-                WHERE framework_type = %s GROUP BY decision
-            """, (fw,))
+                WHERE framework_type = %s AND comparison_id = %s GROUP BY decision
+            """, (fw, run_id))
             rows = {r["decision"]: r["c"] for r in cur.fetchall()}
             total = sum(rows.values())
             out[fw] = {
@@ -102,14 +122,46 @@ def decision_distribution(conn):
     return out
 
 
-def security_accuracy(conn):
+def usability_benign_only(conn, run_id):
+    """Step-up/deny rate restricted to genuinely BENIGN sessions — the metric
+    that reflects actual user friction, since the all-sessions rate is
+    dominated by the dataset's deliberate attack oversampling."""
     out = {}
     with conn.cursor() as cur:
         for fw in FRAMEWORKS:
             cur.execute("""
-                SELECT original_label, false_positive, false_negative
-                FROM zta.security_classifications WHERE framework_type = %s
-            """, (fw,))
+                SELECT fc.decision, COUNT(*) as c
+                FROM zta.framework_comparison fc
+                JOIN zta.security_classifications sc
+                  ON fc.session_id = sc.session_id AND fc.framework_type = sc.framework_type
+                WHERE fc.framework_type = %s AND fc.comparison_id = %s
+                  AND UPPER(COALESCE(sc.original_label, 'BENIGN')) = 'BENIGN'
+                GROUP BY fc.decision
+            """, (fw, run_id))
+            rows = {r["decision"]: r["c"] for r in cur.fetchall()}
+            total = sum(rows.values())
+            out[fw] = {
+                "n_benign": total,
+                "allow": rows.get("allow", 0),
+                "step_up": rows.get("step_up", 0),
+                "deny": rows.get("deny", 0),
+                "step_up_rate_pct": round(100 * rows.get("step_up", 0) / max(1, total), 2),
+                "any_friction_rate_pct": round(100 * (rows.get("step_up", 0) + rows.get("deny", 0)) / max(1, total), 2),
+            }
+    return out
+
+
+def security_accuracy(conn, run_id):
+    out = {}
+    with conn.cursor() as cur:
+        for fw in FRAMEWORKS:
+            cur.execute("""
+                SELECT sc.original_label, sc.false_positive, sc.false_negative
+                FROM zta.security_classifications sc
+                JOIN zta.framework_comparison fc
+                  ON fc.session_id = sc.session_id AND fc.framework_type = sc.framework_type
+                WHERE sc.framework_type = %s AND fc.comparison_id = %s
+            """, (fw, run_id))
             rows = cur.fetchall()
             tp = tn = fp = fn = 0
             for r in rows:
@@ -126,27 +178,49 @@ def security_accuracy(conn):
             fpr = fp / max(1, fp + tn)
             precision = tp / max(1, tp + fp)
             f1 = 2 * precision * tpr / max(1e-9, precision + tpr)
+            accuracy = (tp + tn) / max(1, tp + tn + fp + fn)
             out[fw] = {
                 "n": len(rows), "tp": tp, "tn": tn, "fp": fp, "fn": fn,
                 "tpr": round(tpr, 4), "fpr": round(fpr, 4),
                 "precision": round(precision, 4), "f1": round(f1, 4),
+                "accuracy": round(accuracy, 4),
+                "tpr_95ci": _wilson(tp, tp + fn),
+                "fpr_95ci": _wilson(fp, fp + tn),
+                "precision_95ci": _wilson(tp, tp + fp),
+                "accuracy_95ci": _wilson(tp + tn, tp + tn + fp + fn),
             }
     return out
 
 
-def stride_distribution(conn):
-    """Real STRIDE-category alert distribution from zta.siem_alerts (proposed framework's
-    live SIEM correlation)."""
+def stride_distribution(conn, run_id):
+    """STRIDE-category alert distribution from zta.siem_alerts (proposed
+    framework's live SIEM correlation). Joined to framework_comparison rather
+    than timestamp-filtered, so a container restart can't replay leftover
+    alerts from a prior run."""
     with conn.cursor() as cur:
-        cur.execute("SELECT stride, COUNT(*) as c FROM zta.siem_alerts GROUP BY stride")
+        cur.execute("""
+            SELECT sa.stride, COUNT(*) as c
+            FROM zta.siem_alerts sa
+            JOIN zta.framework_comparison fc
+              ON fc.session_id = sa.session_id AND fc.framework_type = 'proposed'
+            WHERE fc.comparison_id = %s
+            GROUP BY sa.stride
+        """, (run_id,))
         counts = {r["stride"]: r["c"] for r in cur.fetchall()}
     return counts
 
 
-def stride_severity_distribution(conn):
+def stride_severity_distribution(conn, run_id):
     """STRIDE category x severity breakdown, for the Figure 4.4 severity panel."""
     with conn.cursor() as cur:
-        cur.execute("SELECT stride, severity, COUNT(*) as c FROM zta.siem_alerts GROUP BY stride, severity")
+        cur.execute("""
+            SELECT sa.stride, sa.severity, COUNT(*) as c
+            FROM zta.siem_alerts sa
+            JOIN zta.framework_comparison fc
+              ON fc.session_id = sa.session_id AND fc.framework_type = 'proposed'
+            WHERE fc.comparison_id = %s
+            GROUP BY sa.stride, sa.severity
+        """, (run_id,))
         rows = cur.fetchall()
     out = {}
     for r in rows:
@@ -155,12 +229,8 @@ def stride_severity_distribution(conn):
 
 
 def label_to_stride(label):
-    """Maps a raw ground-truth label (CIC-IDS2018 attack name or simulator-injected
-    label) to a STRIDE category. Mirrors services/validation/app/main.py's
-    compute_reasons() mapping exactly, so this breakdown is consistent with how
-    the proposed framework's own SIEM correlation classifies STRIDE categories —
-    just applied here to ALL frameworks against ground truth, not just proposed's
-    own alert factors."""
+    """Maps a ground-truth label to a STRIDE category, mirroring
+    services/validation/app/main.py's compute_reasons() mapping."""
     L = (label or "BENIGN").upper()
     if L == "BENIGN":
         return None
@@ -170,24 +240,25 @@ def label_to_stride(label):
         return "Tampering"
     if "REPUDIATION" in L:
         return "Repudiation"
-    if "DOS-GOLDENEYE" in L or "DOS-SLOWLORIS" in L or "DDOS" in L or L.startswith("DOS"):
+    if "EXFILTRATION" in L:
+        return "InformationDisclosure"
+    # Real CIC-IDS2018 labels are "DoS attacks-GoldenEye"/"DoS attacks-Slowloris"
+    # (space, not hyphen) — startswith("DOS") is what actually matches those;
+    # DDOS is kept for any future file that adds DDoS-labelled rows (none of
+    # the four files currently used do).
+    if "DDOS" in L or L.startswith("DOS"):
         return "DoS"
-    if "XSS" in L or "SQL INJECTION" in L or "BRUTE FORCE-WEB" in L or "WEB ATTACK" in L:
+    if "XSS" in L or "SQL INJECTION" in L or "WEB ATTACK" in L or ("BRUTE FORCE" in L and "WEB" in L):
         return "EoP"
     if "FTP-BRUTEFORCE" in L or "SSH-BRUTEFORCE" in L or "BRUTEFORCE" in L:
-        return "Spoofing"  # credential-attack -> spoofing, matching validation's CREDENTIAL_ATTACK mapping
+        return "Spoofing"  # credential-attack -> spoofing
     if "BOT" in L or "INFILTERATION" in L or "INFILTRATION" in L:
         return "InformationDisclosure"
-    return "Other"  # any CIC-IDS2018 attack label not covered by the above (rare, passed through by the "benign" no-op bucket)
+    return "Other"
 
 
-def security_accuracy_by_stride(conn):
-    """Per-STRIDE-category detection rate (TPR) per framework — explains WHY
-    aggregate TPR is low for baselines whose published equations only ever read
-    device/location/time signals: they detect Spoofing/Repudiation reasonably
-    (categories that manifest as GPS/behavioral anomalies) but miss DoS/Tampering/
-    EoP/InformationDisclosure almost entirely (network-layer attacks invisible to
-    those signals by construction, not a bug in the reproduction)."""
+def security_accuracy_by_stride(conn, run_id):
+    """Per-STRIDE-category detection rate (TPR) per framework."""
     out = {}
     with conn.cursor() as cur:
         for fw in FRAMEWORKS:
@@ -196,8 +267,8 @@ def security_accuracy_by_stride(conn):
                 FROM zta.security_classifications sc
                 JOIN zta.framework_comparison fc
                   ON fc.session_id = sc.session_id AND fc.framework_type = sc.framework_type
-                WHERE sc.framework_type = %s
-            """, (fw,))
+                WHERE sc.framework_type = %s AND fc.comparison_id = %s
+            """, (fw, run_id))
             rows = cur.fetchall()
             by_cat = {}
             for r in rows:
@@ -215,14 +286,10 @@ def security_accuracy_by_stride(conn):
     return out
 
 
-def mcnemar_significance(conn):
+def mcnemar_significance(conn, run_id):
     """McNemar's test (chi-square with continuity correction) comparing the
     proposed framework's paired correct/incorrect predictions against each
-    baseline on the SAME sessions (same session_id shared across frameworks,
-    since one simulated signal is sent to all frameworks per sample). Replaces
-    the thesis's previously fabricated Table 4.5 (invented p-values) with a
-    real, reproducible significance test.
-    """
+    baseline on the same sessions."""
     from scipy.stats import chi2
 
     with conn.cursor() as cur:
@@ -231,8 +298,8 @@ def mcnemar_significance(conn):
             FROM zta.security_classifications sc
             JOIN zta.framework_comparison fc
               ON fc.session_id = sc.session_id AND fc.framework_type = sc.framework_type
-            WHERE sc.framework_type = ANY(%s)
-        """, (FRAMEWORKS,))
+            WHERE sc.framework_type = ANY(%s) AND fc.comparison_id = %s
+        """, (FRAMEWORKS, run_id))
         rows = cur.fetchall()
 
     # session_id -> {framework: correct(bool)}
@@ -264,7 +331,7 @@ def mcnemar_significance(conn):
             statistic, p_value = 0.0, 1.0
         else:
             statistic = (abs(b - c) - 1) ** 2 / (b + c)
-            p_value = 1 - chi2.cdf(statistic, df=1)
+            p_value = chi2.sf(statistic, df=1)
 
         out[baseline] = {
             "n_paired_sessions": n_pairs,
@@ -282,22 +349,21 @@ def mcnemar_significance(conn):
 def main():
     conn = _connect()
     try:
+        run_id = resolve_run_id(conn)
         result = {
-            "latency": latency_stats(conn),
-            "decisions": decision_distribution(conn),
-            "security_accuracy": security_accuracy(conn),
-            "security_accuracy_by_stride": security_accuracy_by_stride(conn),
-            "mcnemar_significance": mcnemar_significance(conn),
-            "stride_alert_distribution": stride_distribution(conn),
-            "stride_severity_distribution": stride_severity_distribution(conn),
+            "comparison_id": run_id,
+            "latency": latency_stats(conn, run_id),
+            "decisions": decision_distribution(conn, run_id),
+            "usability_benign_only": usability_benign_only(conn, run_id),
+            "security_accuracy": security_accuracy(conn, run_id),
+            "security_accuracy_by_stride": security_accuracy_by_stride(conn, run_id),
+            "mcnemar_significance": mcnemar_significance(conn, run_id),
+            "stride_alert_distribution": stride_distribution(conn, run_id),
+            "stride_severity_distribution": stride_severity_distribution(conn, run_id),
         }
 
-        net_path = os.path.join(os.path.dirname(__file__), "simulator", "network_condition_results.json")
-        if os.path.exists(net_path):
-            with open(net_path) as f:
-                result["network_conditions"] = json.load(f)
-        else:
-            result["network_conditions"] = None
+        # Network-condition results are a separate experiment with its own run provenance.
+        result["network_conditions"] = None
 
         out_path = os.path.join(os.path.dirname(__file__), "chapter4_metrics.json")
         with open(out_path, "w") as f:

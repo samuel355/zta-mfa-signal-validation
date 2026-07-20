@@ -1,346 +1,400 @@
 {
+  "comparison_id": "thesis-final-20260720-exfil-v1",
   "latency": {
     "proposed": {
-      "n": 3921,
-      "avg_ms": 565.0,
-      "median_ms": 71,
-      "p95_ms": 2287.0,
-      "p99_ms": 2801.0
+      "n": 1994,
+      "avg_ms": 798.9,
+      "median_ms": 345.0,
+      "p95_ms": 2389.3,
+      "p99_ms": 3350.8
     },
     "ablation": {
-      "n": 5516,
-      "avg_ms": 22.1,
-      "median_ms": 16.0,
-      "p95_ms": 42.2,
-      "p99_ms": 105.9
+      "n": 1994,
+      "avg_ms": 313.5,
+      "median_ms": 299.0,
+      "p95_ms": 400.0,
+      "p99_ms": 597.1
     },
     "ahmadi2025": {
-      "n": 5516,
-      "avg_ms": 19.8,
-      "median_ms": 15.0,
-      "p95_ms": 39.0,
-      "p99_ms": 95.9
+      "n": 1994,
+      "avg_ms": 10.8,
+      "median_ms": 10.0,
+      "p95_ms": 14.0,
+      "p99_ms": 19.0
     },
     "phani2025": {
-      "n": 5516,
-      "avg_ms": 19.3,
-      "median_ms": 14.0,
-      "p95_ms": 38.0,
-      "p99_ms": 101.6
+      "n": 1994,
+      "avg_ms": 9.7,
+      "median_ms": 9.0,
+      "p95_ms": 12.0,
+      "p99_ms": 18.1
     }
   },
   "decisions": {
     "proposed": {
-      "total": 5521,
-      "allow": 405,
-      "step_up": 4422,
-      "deny": 694,
-      "step_up_rate_pct": 80.09
+      "total": 1999,
+      "allow": 424,
+      "step_up": 1575,
+      "deny": 0,
+      "step_up_rate_pct": 78.79
     },
     "ablation": {
-      "total": 5521,
-      "allow": 3759,
-      "step_up": 1762,
+      "total": 1999,
+      "allow": 874,
+      "step_up": 1125,
       "deny": 0,
-      "step_up_rate_pct": 31.91
+      "step_up_rate_pct": 56.28
     },
     "ahmadi2025": {
-      "total": 5521,
-      "allow": 4405,
-      "step_up": 563,
-      "deny": 553,
-      "step_up_rate_pct": 10.2
+      "total": 1999,
+      "allow": 1635,
+      "step_up": 183,
+      "deny": 181,
+      "step_up_rate_pct": 9.15
     },
     "phani2025": {
-      "total": 5521,
-      "allow": 4962,
-      "step_up": 20,
-      "deny": 539,
-      "step_up_rate_pct": 0.36
+      "total": 1999,
+      "allow": 1815,
+      "step_up": 6,
+      "deny": 178,
+      "step_up_rate_pct": 0.3
+    }
+  },
+  "usability_benign_only": {
+    "proposed": {
+      "n_benign": 378,
+      "allow": 368,
+      "step_up": 10,
+      "deny": 0,
+      "step_up_rate_pct": 2.65,
+      "any_friction_rate_pct": 2.65
+    },
+    "ablation": {
+      "n_benign": 378,
+      "allow": 368,
+      "step_up": 10,
+      "deny": 0,
+      "step_up_rate_pct": 2.65,
+      "any_friction_rate_pct": 2.65
+    },
+    "ahmadi2025": {
+      "n_benign": 378,
+      "allow": 333,
+      "step_up": 30,
+      "deny": 15,
+      "step_up_rate_pct": 7.94,
+      "any_friction_rate_pct": 11.9
+    },
+    "phani2025": {
+      "n_benign": 378,
+      "allow": 363,
+      "step_up": 0,
+      "deny": 15,
+      "step_up_rate_pct": 0.0,
+      "any_friction_rate_pct": 3.97
     }
   },
   "security_accuracy": {
     "proposed": {
-      "n": 5521,
-      "tp": 5116,
-      "tn": 349,
-      "fp": 0,
+      "n": 1999,
+      "tp": 1565,
+      "tn": 368,
+      "fp": 10,
       "fn": 56,
-      "tpr": 0.9892,
-      "fpr": 0.0,
-      "precision": 1.0,
-      "f1": 0.9946
+      "tpr": 0.9655,
+      "fpr": 0.0265,
+      "precision": 0.9937,
+      "f1": 0.9793,
+      "accuracy": 0.967,
+      "tpr_95ci": [
+        0.9554,
+        0.9733
+      ],
+      "fpr_95ci": [
+        0.0144,
+        0.048
+      ],
+      "precision_95ci": [
+        0.9884,
+        0.9965
+      ],
+      "accuracy_95ci": [
+        0.9582,
+        0.974
+      ]
     },
     "ablation": {
-      "n": 5521,
-      "tp": 1762,
-      "tn": 349,
-      "fp": 0,
-      "fn": 3410,
-      "tpr": 0.3407,
-      "fpr": 0.0,
-      "precision": 1.0,
-      "f1": 0.5082
+      "n": 1999,
+      "tp": 1115,
+      "tn": 368,
+      "fp": 10,
+      "fn": 506,
+      "tpr": 0.6878,
+      "fpr": 0.0265,
+      "precision": 0.9911,
+      "f1": 0.8121,
+      "accuracy": 0.7419,
+      "tpr_95ci": [
+        0.6649,
+        0.7099
+      ],
+      "fpr_95ci": [
+        0.0144,
+        0.048
+      ],
+      "precision_95ci": [
+        0.9837,
+        0.9952
+      ],
+      "accuracy_95ci": [
+        0.7222,
+        0.7606
+      ]
     },
     "ahmadi2025": {
-      "n": 5521,
-      "tp": 1084,
-      "tn": 317,
-      "fp": 32,
-      "fn": 4088,
-      "tpr": 0.2096,
-      "fpr": 0.0917,
-      "precision": 0.9713,
-      "f1": 0.3448
+      "n": 1999,
+      "tp": 319,
+      "tn": 333,
+      "fp": 45,
+      "fn": 1302,
+      "tpr": 0.1968,
+      "fpr": 0.119,
+      "precision": 0.8764,
+      "f1": 0.3214,
+      "accuracy": 0.3262,
+      "tpr_95ci": [
+        0.1782,
+        0.2169
+      ],
+      "fpr_95ci": [
+        0.0902,
+        0.1556
+      ],
+      "precision_95ci": [
+        0.8386,
+        0.9063
+      ],
+      "accuracy_95ci": [
+        0.306,
+        0.347
+      ]
     },
     "phani2025": {
-      "n": 5521,
-      "tp": 554,
-      "tn": 344,
-      "fp": 5,
-      "fn": 4618,
-      "tpr": 0.1071,
-      "fpr": 0.0143,
-      "precision": 0.9911,
-      "f1": 0.1933
+      "n": 1999,
+      "tp": 169,
+      "tn": 363,
+      "fp": 15,
+      "fn": 1452,
+      "tpr": 0.1043,
+      "fpr": 0.0397,
+      "precision": 0.9185,
+      "f1": 0.1873,
+      "accuracy": 0.2661,
+      "tpr_95ci": [
+        0.0903,
+        0.1201
+      ],
+      "fpr_95ci": [
+        0.0242,
+        0.0644
+      ],
+      "precision_95ci": [
+        0.8699,
+        0.95
+      ],
+      "accuracy_95ci": [
+        0.2472,
+        0.2859
+      ]
     }
   },
   "security_accuracy_by_stride": {
     "proposed": {
-      "Repudiation": {
-        "n": 401,
-        "detected": 401,
+      "Spoofing": {
+        "n": 311,
+        "detected": 311,
         "tpr": 1.0
       },
-      "Spoofing": {
-        "n": 1060,
-        "detected": 1060,
+      "Repudiation": {
+        "n": 156,
+        "detected": 156,
         "tpr": 1.0
       },
       "Tampering": {
-        "n": 638,
-        "detected": 638,
-        "tpr": 1.0
-      },
-      "EoP": {
-        "n": 894,
-        "detected": 894,
+        "n": 245,
+        "detected": 245,
         "tpr": 1.0
       },
       "InformationDisclosure": {
-        "n": 845,
-        "detected": 845,
+        "n": 244,
+        "detected": 244,
         "tpr": 1.0
       },
       "DoS": {
-        "n": 1246,
-        "detected": 1246,
+        "n": 341,
+        "detected": 341,
         "tpr": 1.0
       },
-      "Other": {
-        "n": 88,
-        "detected": 32,
-        "tpr": 0.3636
+      "EoP": {
+        "n": 324,
+        "detected": 268,
+        "tpr": 0.8272
       }
     },
     "ablation": {
-      "Repudiation": {
-        "n": 401,
-        "detected": 0,
-        "tpr": 0.0
-      },
       "Spoofing": {
-        "n": 1060,
-        "detected": 268,
-        "tpr": 0.2528
+        "n": 311,
+        "detected": 99,
+        "tpr": 0.3183
       },
-      "Tampering": {
-        "n": 638,
-        "detected": 0,
-        "tpr": 0.0
-      },
-      "EoP": {
-        "n": 894,
-        "detected": 36,
-        "tpr": 0.0403
-      },
-      "InformationDisclosure": {
-        "n": 845,
-        "detected": 212,
-        "tpr": 0.2509
-      },
-      "DoS": {
-        "n": 1246,
-        "detected": 1246,
+      "Repudiation": {
+        "n": 156,
+        "detected": 156,
         "tpr": 1.0
       },
-      "Other": {
-        "n": 88,
-        "detected": 0,
-        "tpr": 0.0
+      "Tampering": {
+        "n": 245,
+        "detected": 7,
+        "tpr": 0.0286
+      },
+      "InformationDisclosure": {
+        "n": 244,
+        "detected": 244,
+        "tpr": 1.0
+      },
+      "DoS": {
+        "n": 341,
+        "detected": 341,
+        "tpr": 1.0
+      },
+      "EoP": {
+        "n": 324,
+        "detected": 268,
+        "tpr": 0.8272
       }
     },
     "ahmadi2025": {
-      "Repudiation": {
-        "n": 401,
-        "detected": 36,
-        "tpr": 0.0898
-      },
       "Spoofing": {
-        "n": 1060,
-        "detected": 738,
-        "tpr": 0.6962
+        "n": 311,
+        "detected": 205,
+        "tpr": 0.6592
+      },
+      "Repudiation": {
+        "n": 156,
+        "detected": 19,
+        "tpr": 0.1218
       },
       "Tampering": {
-        "n": 638,
-        "detected": 59,
-        "tpr": 0.0925
-      },
-      "EoP": {
-        "n": 894,
-        "detected": 70,
-        "tpr": 0.0783
+        "n": 245,
+        "detected": 20,
+        "tpr": 0.0816
       },
       "InformationDisclosure": {
-        "n": 845,
-        "detected": 68,
-        "tpr": 0.0805
+        "n": 244,
+        "detected": 26,
+        "tpr": 0.1066
       },
       "DoS": {
-        "n": 1246,
-        "detected": 106,
-        "tpr": 0.0851
+        "n": 341,
+        "detected": 22,
+        "tpr": 0.0645
       },
-      "Other": {
-        "n": 88,
-        "detected": 7,
-        "tpr": 0.0795
+      "EoP": {
+        "n": 324,
+        "detected": 27,
+        "tpr": 0.0833
       }
     },
     "phani2025": {
-      "Repudiation": {
-        "n": 401,
-        "detected": 8,
-        "tpr": 0.02
-      },
       "Spoofing": {
-        "n": 1060,
-        "detected": 432,
-        "tpr": 0.4075
+        "n": 311,
+        "detected": 137,
+        "tpr": 0.4405
+      },
+      "Repudiation": {
+        "n": 156,
+        "detected": 6,
+        "tpr": 0.0385
       },
       "Tampering": {
-        "n": 638,
-        "detected": 22,
-        "tpr": 0.0345
-      },
-      "EoP": {
-        "n": 894,
-        "detected": 25,
-        "tpr": 0.028
+        "n": 245,
+        "detected": 1,
+        "tpr": 0.0041
       },
       "InformationDisclosure": {
-        "n": 845,
-        "detected": 22,
-        "tpr": 0.026
+        "n": 244,
+        "detected": 12,
+        "tpr": 0.0492
       },
       "DoS": {
-        "n": 1246,
-        "detected": 39,
-        "tpr": 0.0313
+        "n": 341,
+        "detected": 7,
+        "tpr": 0.0205
       },
-      "Other": {
-        "n": 88,
+      "EoP": {
+        "n": 324,
         "detected": 6,
-        "tpr": 0.0682
+        "tpr": 0.0185
       }
     }
   },
   "mcnemar_significance": {
     "ablation": {
-      "n_paired_sessions": 5521,
-      "proposed_correct_baseline_wrong": 3354,
+      "n_paired_sessions": 1999,
+      "proposed_correct_baseline_wrong": 450,
       "proposed_wrong_baseline_correct": 0,
-      "both_correct": 2111,
-      "both_wrong": 56,
-      "mcnemar_chi2": 3352.0003,
+      "both_correct": 1483,
+      "both_wrong": 66,
+      "mcnemar_chi2": 448.0022,
       "p_value": 0.0,
       "significant_at_0.05": true
     },
     "ahmadi2025": {
-      "n_paired_sessions": 5521,
-      "proposed_correct_baseline_wrong": 4069,
-      "proposed_wrong_baseline_correct": 5,
-      "both_correct": 1396,
-      "both_wrong": 51,
-      "mcnemar_chi2": 4052.0297,
+      "n_paired_sessions": 1999,
+      "proposed_correct_baseline_wrong": 1293,
+      "proposed_wrong_baseline_correct": 12,
+      "both_correct": 640,
+      "both_wrong": 54,
+      "mcnemar_chi2": 1255.4789,
       "p_value": 0.0,
       "significant_at_0.05": true
     },
     "phani2025": {
-      "n_paired_sessions": 5521,
-      "proposed_correct_baseline_wrong": 4571,
-      "proposed_wrong_baseline_correct": 4,
-      "both_correct": 894,
-      "both_wrong": 52,
-      "mcnemar_chi2": 4557.0177,
+      "n_paired_sessions": 1999,
+      "proposed_correct_baseline_wrong": 1413,
+      "proposed_wrong_baseline_correct": 12,
+      "both_correct": 520,
+      "both_wrong": 54,
+      "mcnemar_chi2": 1375.4386,
       "p_value": 0.0,
       "significant_at_0.05": true
     }
   },
   "stride_alert_distribution": {
-    "DoS": 675,
-    "EoP": 484,
-    "InformationDisclosure": 446,
-    "Repudiation": 220,
-    "Spoofing": 846,
-    "Tampering": 2488
+    "Repudiation": 156,
+    "DoS": 503,
+    "EoP": 181,
+    "Tampering": 496,
+    "Spoofing": 216
   },
   "stride_severity_distribution": {
-    "EoP": {
-      "medium": 477,
-      "high": 7
-    },
-    "DoS": {
-      "medium": 675
-    },
-    "Tampering": {
-      "high": 694,
-      "medium": 1257,
-      "low": 537
-    },
-    "InformationDisclosure": {
-      "low": 340,
-      "medium": 106
-    },
     "Spoofing": {
-      "medium": 219,
-      "low": 627
+      "low": 216
+    },
+    "EoP": {
+      "medium": 2,
+      "low": 179
     },
     "Repudiation": {
-      "low": 220
+      "low": 155,
+      "medium": 1
+    },
+    "DoS": {
+      "low": 503
+    },
+    "Tampering": {
+      "low": 496
     }
   },
-  "network_conditions": {
-    "normal": {
-      "label": "Normal (500 Mbps)",
-      "avg_latency_ms": 680.2,
-      "tpr": 0.6099,
-      "fpr": 0.0,
-      "samples": 150
-    },
-    "constrained": {
-      "label": "Constrained (256 kbps, 50 ms latency)",
-      "avg_latency_ms": 807.2,
-      "tpr": 0.6214,
-      "fpr": 0.0,
-      "samples": 150
-    },
-    "degraded": {
-      "label": "Degraded (256 kbps, 100 ms, 5% loss)",
-      "avg_latency_ms": 875.5,
-      "tpr": 0.6224,
-      "fpr": 0.0,
-      "samples": 150
-    }
-  }
+  "network_conditions": null
 }

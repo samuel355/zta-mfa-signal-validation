@@ -1,8 +1,7 @@
 from fastapi import FastAPI, BackgroundTasks
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
-import os, json, hashlib, time
-from datetime import datetime
+import os, json, hashlib
 import pyotp
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
@@ -11,20 +10,6 @@ from .ablation_engine import process_baseline_request, get_baseline_thesis_metri
 api = FastAPI(title="Baseline MFA Service", version="1.0")
 
 _engine: Optional[Engine] = None
-
-# Simple baseline thresholds (fixed for reasonable decision making)
-SUSPICIOUS_IP_PREFIXES = ["203.0.113.", "198.51.100.", "vpn", "proxy", "tor"]  # Actually suspicious ranges only
-BUSINESS_HOURS_START = 6  # 6 AM
-BUSINESS_HOURS_END = 22   # 10 PM (more reasonable business hours)
-MAX_FAILED_ATTEMPTS = 3   # Reasonable threshold
-DEVICE_TRUST_HOURS = 24 * 7  # 1 week trust period
-
-# Baseline risk factors (balanced for reasonable decisions)
-SUSPICIOUS_IP_WEIGHT = float(os.getenv("BASELINE_SUSPICIOUS_IP_WEIGHT", "0.25"))
-UNKNOWN_DEVICE_WEIGHT = float(os.getenv("BASELINE_UNKNOWN_DEVICE_WEIGHT", "0.15"))
-LOCATION_ANOMALY_WEIGHT = float(os.getenv("BASELINE_LOCATION_ANOMALY_WEIGHT", "0.10"))
-OUTSIDE_HOURS_WEIGHT = float(os.getenv("BASELINE_OUTSIDE_HOURS_WEIGHT", "0.08"))
-THREAT_WEIGHT = float(os.getenv("BASELINE_THREAT_WEIGHT", "0.20"))
 
 def _index_baseline_to_es(decision: Dict[str, Any], signals: Dict[str, Any]):
     """Index baseline decisions to Elasticsearch for comparison"""
@@ -119,35 +104,6 @@ def _warm_pool(engine: Engine, n: int):
         for c in conns:
             c.close()
 
-def is_suspicious_ip(ip: str) -> bool:
-    """Simple IP-based suspicion detection"""
-    if not ip:
-        return True  # No IP = suspicious
-
-    # Check against suspicious prefixes
-    for prefix in SUSPICIOUS_IP_PREFIXES:
-        if ip.startswith(prefix):
-            return True
-
-    # Check for known bad patterns (simplified)
-    if ip.startswith("0.") or ip.startswith("127.") or ip.startswith("169.254."):
-        return True
-
-    return False
-
-def is_outside_business_hours() -> bool:
-    """Check if current time is outside business hours"""
-    now = datetime.now()
-    hour = now.hour
-
-    # Outside business hours or weekend
-    if hour < BUSINESS_HOURS_START or hour >= BUSINESS_HOURS_END:
-        return True
-    if now.weekday() >= 5:  # Saturday or Sunday
-        return True
-
-    return False
-
 def get_device_fingerprint(signals: Dict[str, Any]) -> str:
     """Create simple device fingerprint"""
     device_info = signals.get("device_posture", {})
@@ -157,87 +113,24 @@ def get_device_fingerprint(signals: Dict[str, Any]) -> str:
     fingerprint_data = f"{device_info.get('device_id', 'unknown')}:{ip}"
     return hashlib.md5(fingerprint_data.encode()).hexdigest()
 
-def is_trusted_device(device_fingerprint: str) -> bool:
-    """Check if device was recently trusted"""
-    eng = get_engine()
-    if eng is None:
-        return False
-
-    try:
-        with eng.connect() as conn:
-            result = conn.execute(text(f"""
-                SELECT COUNT(*) FROM zta.baseline_trusted_devices
-                WHERE device_fingerprint = :fp
-                AND created_at > NOW() - INTERVAL '{DEVICE_TRUST_HOURS} HOURS'
-                AND trust_status = 'trusted'
-            """), {
-                "fp": device_fingerprint
-            }).scalar()
-
-            return (result or 0) > 0
-    except Exception:
-        return False
-
-def check_failed_attempts(session_id: str) -> int:
-    """Check recent failed attempts for this session/user"""
-    eng = get_engine()
-    if eng is None:
-        return 0
-
-    try:
-        with eng.connect() as conn:
-            result = conn.execute(text("""
-                SELECT COUNT(*) FROM zta.baseline_auth_attempts
-                WHERE session_id = :sid
-                AND outcome = 'failed'
-                AND created_at > NOW() - INTERVAL '1 hour'
-            """), {
-                "sid": session_id
-            }).scalar()
-
-            return result or 0
-    except Exception:
-        return 0
-
-def detect_simple_threats(signals: Dict[str, Any]) -> list[str]:
-    """Simple threat detection based on basic rules"""
-    threats = []
-
-    # Check label from CIC-IDS2018 dataset
-    label = str(signals.get("label", "")).upper()
-    if label and label != "BENIGN":
-        if "DDOS" in label or "DOS" in label:
-            threats.append("DOS_ATTACK")
-        if "WEB ATTACK" in label or "SQLI" in label:
-            threats.append("WEB_ATTACK")
-        if "BOT" in label or "INFILTRATION" in label:
-            threats.append("MALWARE")
-        if "HEARTBLEED" in label:
-            threats.append("TLS_VULNERABILITY")
-
-    # Simple geographic check (if GPS and WiFi are very far apart)
-    gps = signals.get("gps", {})
-    wifi = signals.get("wifi_bssid", {})
-    if gps and wifi:
-        # This is a very simplified check - in reality you'd need
-        # geolocation database
-        threats.append("LOCATION_ANOMALY")
-
-    return threats
-
 def make_baseline_decision(signals: Dict[str, Any]) -> Dict[str, Any]:
     """Make MFA decision using thesis-compliant baseline engine"""
     # Use the new thesis-compliant baseline engine
     result = process_baseline_request(signals)
 
-    # Convert thesis response to legacy format for compatibility
+    # Convert thesis response to legacy format for compatibility. Fingerprint
+    # is computed here rather than trusting ablation_engine.py's response
+    # (which never sets one — that engine has no reason to fingerprint
+    # devices for its own risk-scoring path) so /stats, /comparison, and
+    # zta.baseline_trusted_devices get a real, distinct value per
+    # device+IP pair instead of every session colliding on "unknown".
     legacy_result = {
         "session_id": result["session_id"],
         "decision": result["decision"],
         "enforcement": result["enforcement"],
         "risk_score": result["risk_score"],
         "factors": result.get("details", {}).get("risk_factors", {}),
-        "device_fingerprint": result.get("details", {}).get("device_fingerprint", "unknown"),
+        "device_fingerprint": get_device_fingerprint(signals),
         "decision_time_ms": result.get("thesis_metrics", {}).get("processing_time_ms", 120)
     }
 

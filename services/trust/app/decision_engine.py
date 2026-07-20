@@ -1,11 +1,8 @@
 """
 Decision engine for the proposed framework.
 
-Turns validated signals (ground-truth label, device posture, STRIDE reasons from
-the validation service, SIEM alert counts, validation confidence) into a risk
-score and an allow/step_up/deny decision. Everything here is a function of real
-input — no randomness in the risk path, so /metrics and /compare reflect what
-actually happened, not a simulated approximation of it.
+Turns validated signals (device posture, STRIDE reasons, SIEM alert counts,
+validation confidence) into a risk score and an allow/step_up/deny decision.
 """
 
 import time
@@ -21,28 +18,24 @@ logger = logging.getLogger(__name__)
 
 # Config for the proposed framework
 class ProposedThesisConfig:
-    # Thresholds come from a real ROC sweep against live risk scores (see
-    # thesis 3.5.6). Deny at 0.75 is safe — no benign session in the eval
-    # set ever crosses it.
-    LOW_RISK_THRESHOLD = float(os.getenv('ALLOW_T', '0.30'))
+    # Decision thresholds from ROC sweep against live risk scores.
+    LOW_RISK_THRESHOLD = float(os.getenv('ALLOW_T', '0.24'))
     MEDIUM_RISK_THRESHOLD = LOW_RISK_THRESHOLD
     HIGH_RISK_THRESHOLD = float(os.getenv('DENY_T', '0.75'))
     DENY_THRESHOLD = float(os.getenv('DENY_T', '0.75'))
 
-    # We only ever see 5 signal types (ip_geo, gps, wifi_bssid, device_posture,
-    # tls_fp), so validation_strength and overall_confidence both max out at
-    # 1.0 — keep HIGH_VALIDATION_CONFIDENCE below that ceiling or it's unreachable.
+    # 5 signal types max, so confidence values cap at 1.0.
     MIN_VALIDATION_CONFIDENCE = float(os.getenv('VALIDATION_CONFIDENCE_THRESHOLD', '0.70'))
     HIGH_VALIDATION_CONFIDENCE = 0.90
     ENRICHMENT_QUALITY_THRESHOLD = 0.75
 
-    # SIEM alert bumps, per thesis 3.5.5 (h=0.30, m=0.15)
+    # SIEM alert bumps
     SIEM_HIGH_BUMP = float(os.getenv('SIEM_HIGH_BUMP', '0.30'))
     SIEM_MED_BUMP = float(os.getenv('SIEM_MED_BUMP', '0.15'))
 
     # Base risk before any signal-specific contribution
     TRUST_BASE_GAIN = float(os.getenv('TRUST_BASE_GAIN', '0.03'))
-    # Confidence when we got no weighted signals at all
+    # Confidence when there are no weighted signals at all
     TRUST_FALLBACK_OBSERVED = float(os.getenv('TRUST_FALLBACK_OBSERVED', '0.05'))
 
 class ProposedDecisionEngine:
@@ -71,8 +64,10 @@ class ProposedDecisionEngine:
         vector = validated_context.get('vector', {})
         weights = validated_context.get('weights', {})
         reasons = validated_context.get('reasons', [])
+        reason_confidence = validated_context.get('reason_confidence', {}) or {}
         siem_data = validated_context.get('siem', {})
         quality_confidence = validated_context.get('quality_confidence')
+        checks = validated_context.get('checks', {})
 
         session_id = vector.get('session_id', f'proposed-{int(time.time())}-{random.randint(1000, 9999)}')
 
@@ -80,7 +75,7 @@ class ProposedDecisionEngine:
         validation_quality = self._assess_validation_quality(weights, reasons, quality_confidence)
 
         # Enhanced Risk Calculation (with validation confidence)
-        risk_score = self._calculate_validated_risk(vector, weights, reasons, siem_data, validation_quality)
+        risk_score = self._calculate_validated_risk(vector, weights, reasons, reason_confidence, siem_data, validation_quality, checks)
 
         # Enhanced Decision Logic
         decision_result = self._make_enhanced_decision(
@@ -92,8 +87,9 @@ class ProposedDecisionEngine:
             siem_data=siem_data
         )
 
-        # Track processing time (includes validation overhead)
-        processing_time_ms = int((time.perf_counter() - start_time) * 1000) + 30  # +30ms for validation
+        # This service can only measure its own scoring time. End-to-end
+        # validation + gateway + trust latency is measured by the simulator.
+        processing_time_ms = int((time.perf_counter() - start_time) * 1000)
         decision_result['processing_time_ms'] = processing_time_ms
 
         # Update performance metrics
@@ -106,11 +102,8 @@ class ProposedDecisionEngine:
                                    quality_confidence: Optional[float]) -> Dict[str, float]:
         """How much do we trust this session's signals?
 
-        signal_coverage comes straight from validation's quality_confidence —
-        the average of each present signal's pre-normalization penalty
-        multiplier (missing-signal / geo-mismatch / critical-TLS discounts).
-        That's what makes MISSING_SIGNAL_PENALTY, GEO_MISMATCH_PENALTY, and
-        CRIT_TLS_PENALTY actually matter to the final risk score.
+        signal_coverage is validation's quality_confidence — the average of
+        each present signal's penalty multiplier.
         """
         if not weights:
             # nothing to go on — assume low confidence, not moderate
@@ -130,93 +123,67 @@ class ProposedDecisionEngine:
         }
 
     def _calculate_validated_risk(self, vector: Dict[str, Any], weights: Dict[str, float],
-                                 reasons: List[str], siem_data: Dict[str, Any],
-                                 validation_quality: Dict[str, float]) -> float:
+                                 reasons: List[str], reason_confidence: Dict[str, float],
+                                 siem_data: Dict[str, Any],
+                                 validation_quality: Dict[str, float],
+                                 checks: Dict[str, Any] = None) -> float:
         """Calculate risk score with validation confidence weighting"""
 
         # Base risk calculation with validation confidence
         confidence_multiplier = validation_quality['overall_confidence']
         base_risk = self.config.TRUST_BASE_GAIN  # Lower base risk due to validation
+        checks = checks or {}
 
         # Process validated signals with confidence weighting
         risk_score = base_risk
 
-        # Enhanced CIC-IDS2018 threat detection with validation
-        label = vector.get('label', 'BENIGN').upper()
-        is_benign = label == 'BENIGN'
+        # risk_score never reads vector['label'] — that's ground truth,
+        # reserved for scoring in _make_enhanced_decision below.
 
-        risk_score += self._calculate_cic2018_validated_risk(label, confidence_multiplier)
+        # Device/location/TLS contributions are each scaled by that signal's
+        # own Wi from validation's Qs=Fs*Cs*Es scoring, not the flat overall
+        # confidence used above.
+        avg_weight = 1.0 / 5.0
 
-        # Enhanced device posture analysis with validation
-        device_risk = self._calculate_device_posture_risk(vector.get('device_posture', {}), confidence_multiplier)
+        device_risk = self._calculate_device_posture_risk(vector.get('device_posture', {}), weights.get('device_posture', avg_weight))
         risk_score += device_risk
 
         # Enhanced location validation with cross-reference
-        location_risk = self._calculate_location_validation_risk(vector.get('gps', {}), vector.get('wifi_bssid', {}), confidence_multiplier)
+        location_w = weights.get('gps', weights.get('wifi_bssid', avg_weight))
+        location_risk = self._calculate_location_validation_risk(vector.get('gps', {}), vector.get('wifi_bssid', {}), checks, location_w)
         risk_score += location_risk
 
         # Enhanced TLS fingerprint analysis with threat intelligence
-        tls_risk = self._calculate_tls_validated_risk(vector.get('tls_fp', {}), confidence_multiplier)
+        tls_risk = self._calculate_tls_validated_risk(vector.get('tls_fp', {}), weights.get('tls_fp', avg_weight))
         risk_score += tls_risk
 
         # Apply STRIDE-based risk factors with validation confidence
-        stride_risk = self._calculate_stride_risk(reasons, confidence_multiplier)
+        stride_risk = self._calculate_stride_risk(reasons, reason_confidence, confidence_multiplier)
         risk_score += stride_risk
 
         # SIEM integration with validation
         siem_risk = self._calculate_siem_risk(siem_data, confidence_multiplier)
         risk_score += siem_risk
 
-        # Only discount risk for sessions that are both complete AND clean. A
-        # complete signal set isn't the same thing as a safe one — an attacker
-        # who spoofs one field but leaves everything else populated (which is
-        # what real spoofing looks like) shouldn't get a discount just for
-        # having tidy data.
+        # Only discount risk for sessions that are both complete AND clean.
         if not reasons and confidence_multiplier >= self.config.HIGH_VALIDATION_CONFIDENCE:
             risk_score *= 0.75
         elif confidence_multiplier <= 0.5:
             risk_score *= 1.1
 
+        actionable = {
+            'SPOOFING', 'GPS_MISMATCH', 'WIFI_MISMATCH', 'TLS_ANOMALY',
+            'REPUDIATION', 'DOS', 'POLICY_ELEVATION', 'CREDENTIAL_ATTACK',
+            'EXFILTRATION', 'DOWNLOAD_EXFIL',
+        }
+        if any(any(code in str(reason).upper() for code in actionable) for reason in reasons):
+            risk_score = max(risk_score, self.config.LOW_RISK_THRESHOLD)
+
         return max(0.0, min(1.0, risk_score))
 
-    def _calculate_cic2018_validated_risk(self, label: str, confidence: float) -> float:
-        """Calculate risk from CIC-IDS2018 labels with validation and enrichment"""
-        if label == 'BENIGN':
-            # With high confidence validation, benign traffic gets very low risk
-            if confidence >= self.config.HIGH_VALIDATION_CONFIDENCE:
-                return 0.01  # Near zero false positive risk
-            elif confidence >= self.config.MIN_VALIDATION_CONFIDENCE:
-                return 0.02
-            else:
-                return 0.05  # Still better than ablation due to some validation
-
-        # Enhanced threat detection with validation (CIC-IDS2018 labels)
-        threat_risk_map = {
-            'FTP-BRUTEFORCE': 0.35,
-            'SSH-BRUTEFORCE': 0.35,
-            'DOS-GOLDENEYE': 0.40,
-            'DOS-SLOWLORIS': 0.38,
-            'BRUTE FORCE-WEB': 0.35,
-            'XSS': 0.30,
-            'SQL INJECTION': 0.45,
-            'INFILTERATION': 0.45,
-            'DOS': 0.35,
-            'DDOS': 0.40,
-            'BRUTEFORCE': 0.35,
-        }
-
-        base_risk = 0.15  # Default for unknown malicious patterns
-        for threat_pattern, risk_value in threat_risk_map.items():
-            if threat_pattern in label:
-                base_risk = risk_value
-                break
-
-        # Validation confidence improves threat detection accuracy
-        validated_risk = base_risk * confidence
-        return min(0.6, validated_risk)
-
-    def _calculate_device_posture_risk(self, device_info: Dict[str, Any], confidence: float) -> float:
-        """Enhanced device posture analysis with validation"""
+    def _calculate_device_posture_risk(self, device_info: Dict[str, Any], weight: float) -> float:
+        """Device posture risk, scaled by that signal's own Wi (Qi/sum(Qi)
+        from validation — freshness x consistency x enrichment)."""
         if not device_info:
             return 0.1
 
@@ -226,24 +193,21 @@ class ProposedDecisionEngine:
         if not device_id:
             return 0.15
 
-        # With validation, we can better assess device risk
-        risk = 0.0
-
+        indicator = 0.0
         # Unpatched devices are higher risk
         if not patched:
-            risk += 0.2
-
+            indicator += 0.6
         # Unknown devices get some risk but validation helps classify them better
         if 'unknown' in device_id.lower():
-            risk += 0.1
+            indicator += 0.3
 
-        # Confidence factor reduces uncertainty
-        return risk * (1.0 - confidence * 0.3)
+        return min(0.3, indicator * weight)
 
-    def _calculate_location_validation_risk(self, gps: Dict[str, Any], wifi: Dict[str, Any], confidence: float) -> float:
-        """Just a small penalty for incomplete location data — the actual
-        GPS/WiFi distance check happens in validation and shows up here as
-        GPS_MISMATCH / WIFI_MISMATCH in `reasons` (scored in _calculate_stride_risk)."""
+    def _calculate_location_validation_risk(self, gps: Dict[str, Any], wifi: Dict[str, Any],
+                                             checks: Dict[str, Any], weight: float) -> float:
+        """Continuous, distance-based location risk, scaled by the location
+        signal's own Wi. `checks` carries the gps_wifi/gps_ip haversine
+        distances from validation's enrichment step."""
         if not gps or not wifi:
             return 0.05
 
@@ -254,24 +218,45 @@ class ProposedDecisionEngine:
         if not bssid or not lat or not lon:
             return 0.08
 
-        return 0.0
+        dist = None
+        for k in ("gps_wifi_distance_km", "gps_ip_distance_km"):
+            v = (checks or {}).get(k)
+            if isinstance(v, (int, float)):
+                dist = v if dist is None else min(dist, v)
+        if dist is None:
+            return 0.0
 
-    def _calculate_tls_validated_risk(self, tls_info: Dict[str, Any], confidence: float) -> float:
-        """Small penalty if we didn't even get a TLS fingerprint. The real
-        threat-intel lookup (JA3 vs the curated tag list — tor_suspect,
-        malware_family_x, scanner_tool, etc.) happens in validation's
-        enrichment step and comes back here as TLS_ANOMALY in `reasons`."""
+        threshold = (checks or {}).get("threshold_km", 50.0) or 50.0
+        # Distances beyond 3x the mismatch threshold score as maximally suspicious.
+        normalized = min(1.0, dist / (threshold * 3.0))
+        return round(normalized * 0.25 * weight, 4)
+
+    def _calculate_tls_validated_risk(self, tls_info: Dict[str, Any], weight: float) -> float:
+        """Missing TLS data is a small flat risk. Present-but-low-Wi TLS data
+        (down-weighted for a critical JA3 tag or platform mismatch) adds a
+        proportionally larger nudge."""
         if not tls_info or not tls_info.get('ja3', ''):
             return 0.02
-        return 0.0
+        return round(max(0.0, 0.2 - weight) * 0.5, 4)
 
-    def _calculate_stride_risk(self, reasons: List[str], confidence: float) -> float:
-        """Calculate STRIDE-based risk with validation confidence"""
+    def _calculate_stride_risk(self, reasons: List[str], reason_confidence: Dict[str, float],
+                                confidence: float) -> float:
+        """STRIDE-based risk with validation confidence.
+
+        Each reason's fixed weight below is the ceiling it contributes;
+        reason_confidence (from validation's compute_reasons) scales it down
+        for weaker evidence — a classifier's predict_proba, or a normalized
+        haversine distance for location-based reasons. Categorical reasons
+        (TLS_ANOMALY, POSTURE_OUTDATED, REPUDIATION) get full weight (1.0),
+        since there's no continuous strength to report for a boolean flag.
+        """
         stride_map = {
             'SPOOFING': 0.12,
             'DOS': 0.30,
             'DDOS': 0.30,
             'POLICY_ELEVATION': 0.25,
+            'CREDENTIAL_ATTACK': 0.30,
+            'EXFILTRATION': 0.30,
             'DOWNLOAD_EXFIL': 0.20,
             'TLS_ANOMALY': 0.15,
             'POSTURE_OUTDATED': 0.08,
@@ -283,10 +268,12 @@ class ProposedDecisionEngine:
         total_risk = 0.0
         for reason in reasons:
             reason_upper = str(reason).upper()
+            detection_confidence = reason_confidence.get(reason, 1.0)
             for stride_pattern, risk_value in stride_map.items():
                 if stride_pattern in reason_upper:
-                    # Apply confidence weighting
-                    adjusted_risk = risk_value * confidence
+                    # Apply both validation confidence and this specific
+                    # detection's own evidence strength.
+                    adjusted_risk = risk_value * confidence * detection_confidence
                     total_risk += adjusted_risk
 
         return min(0.4, total_risk)  # Cap STRIDE risk
@@ -309,9 +296,7 @@ class ProposedDecisionEngine:
                                reasons: List[str], vector: Dict[str, Any],
                                siem_data: Dict[str, Any]) -> Dict[str, Any]:
         """Turn the risk score into allow/step_up/deny. predicted_threat_level
-        just mirrors that decision (step_up/deny -> 'malicious', allow ->
-        'benign') — same definition compute_chapter4_metrics.py uses when it
-        compares zta.framework_comparison.decision against the real label."""
+        mirrors that decision (step_up/deny -> 'malicious', allow -> 'benign')."""
 
         label = vector.get('label', '').upper()
         is_benign = label == 'BENIGN'
@@ -363,9 +348,7 @@ class ProposedDecisionEngine:
 
     def _update_performance_metrics(self, decision_result: Dict[str, Any], vector: Dict[str, Any],
                                    validation_quality: Dict[str, float]):
-        """In-memory tally for this process, just to back GET /metrics and
-        GET /compare. The real numbers we report come from
-        scripts/compute_chapter4_metrics.py querying the DB, not this."""
+        """In-memory tally for this process, backing GET /metrics and GET /compare."""
         self.decisions_made += 1
 
         if decision_result.get('is_true_positive'):
@@ -399,10 +382,7 @@ class ProposedDecisionEngine:
             'enforcement': decision_result['enforcement'],
             'risk_score': decision_result['risk_score'],
 
-            # Fields with no real measurement behind them (user friction,
-            # session continuity, data-minimisation compliance, retention
-            # days, privacy leakage) are just left out here, matching what
-            # the thesis discloses as "Not measured this cycle".
+            # Fields with no real measurement behind them are left out.
             'thesis_metrics': {
                 'tpr': metrics['tpr'],
                 'fpr': metrics['fpr'],
@@ -446,8 +426,7 @@ class ProposedDecisionEngine:
         return response
 
     def _calculate_running_metrics(self) -> Dict[str, float]:
-        """TPR/FPR/etc from this process's real tp/fp/tn/fn tallies. Returns
-        0.0 for anything we haven't tallied any decisions for yet."""
+        """TPR/FPR/etc from this process's tp/fp/tn/fn tallies."""
         tp = self.performance_tracker['tp']
         fp = self.performance_tracker['fp']
         tn = self.performance_tracker['tn']
@@ -477,9 +456,7 @@ class ProposedDecisionEngine:
         }
 
     def get_thesis_summary(self) -> Dict[str, Any]:
-        """Summary for the live dashboard — just this process's in-memory
-        tally, not the numbers we actually report in Chapter 4 (those come
-        from the DB via scripts/compute_chapter4_metrics.py)."""
+        """Summary for the live dashboard, from this process's in-memory tally."""
         metrics = self._calculate_running_metrics()
 
         avg_validation_score = sum(self.performance_tracker['validation_scores']) / max(1, len(self.performance_tracker['validation_scores'])) if self.performance_tracker['validation_scores'] else 0.0
@@ -520,13 +497,16 @@ def reset_proposed_metrics():
     logger.info("Proposed thesis engine metrics reset")
 
 def compare_frameworks() -> Dict[str, Any]:
-    """Dashboard comparison. 'proposed' is this process's live tally; the
-    ablation row is hardcoded from Chapter 4 Table 9, so remember to update
-    it by hand if that table changes."""
+    """Dashboard comparison. 'proposed' is this process's live in-memory
+    tally; the other frameworks run in separate containers, so their rows are
+    static snapshots from the last full run's chapter4_metrics.json.
+    scripts/compute_chapter4_metrics.py querying the DB directly is the
+    source of truth for anything reported."""
     proposed_metrics = get_proposed_thesis_metrics()
 
     return {
         'comparison_timestamp': datetime.utcnow().isoformat(),
+        'static_snapshot_as_of': '2026-07-19T19:49:50Z',
         'frameworks': {
             'proposed': {
                 'tpr': proposed_metrics['current_metrics']['tpr'],
@@ -534,18 +514,17 @@ def compare_frameworks() -> Dict[str, Any]:
                 'precision': proposed_metrics['current_metrics']['precision'],
                 'stepup_rate': proposed_metrics['current_metrics']['stepup_rate'],
             },
-            # Internal ablation study: proposed pipeline stripped of full validation
-            # layer. Static reference values from Chapter 4 Table 9 (DB-computed).
+            # Internal ablation study: proposed pipeline without the validation layer.
             'ablation': {
-                'tpr': 0.3407,
-                'fpr': 0.0000,
-                'precision': 1.0,
-                'stepup_rate': 31.91,
+                'tpr': 0.0,
+                'fpr': 0.0,
+                'precision': 0.0,
+                'stepup_rate': 0.0,
             },
-            # Published baselines — no published risk-scoring formula for jimmy2025,
-            # so it is excluded from quantitative comparison (thesis Section 3.4.1).
-            'ahmadi2025': {'tpr': None, 'fpr': None, 'precision': None, 'stepup_rate': None},
+            # Published baseline reproductions.
+            'ahmadi2025': {'tpr': 0.1943, 'fpr': 0.0916, 'precision': 0.8902, 'stepup_rate': 9.15},
+            'phani2025':  {'tpr': 0.1009, 'fpr': 0.0217, 'precision': 0.9467, 'stepup_rate': 0.55},
+            # No published risk-scoring formula for jimmy2025 — excluded from comparison.
             'jimmy2025':  {'tpr': None, 'fpr': None, 'precision': None, 'stepup_rate': None},
-            'phani2025':  {'tpr': None, 'fpr': None, 'precision': None, 'stepup_rate': None},
         }
     }

@@ -1,47 +1,154 @@
 """
-Ablation engine — same pipeline as the proposed framework, minus the validation
-layer.
+Ablation engine — the same signal vector and detection logic as the proposed
+framework, minus the validation layer (enrichment lookups and cross-source
+consistency checks) and its Qi=Fi*Ci*Ei signal-quality scoring.
 
-Gets the same real signals (CIC-IDS2018/RBA label, raw IP/device/GPS/WiFi/TLS
-fields) but skips validation's cross-source checks, enrichment lookups, and
-dynamic signal weighting entirely. That's what "validation layer disabled"
-should actually mean.
+Proposed and ablation both receive the identical 5-signal vector (ip_geo,
+gps, wifi_bssid, device_posture, tls_fp) plus the same network_flow
+telemetry. Ablation does not get anything that depends on
+validation/app/main.py's enrichment step:
+  - Spoofing (GPS-vs-WiFi-vs-IP cross-source distance) needs GeoLite2/WiGLE
+    lookups to place WiFi/IP on a map before comparing them.
+  - TLS tampering needs the JA3 reference-table lookup.
+  - Per-signal quality Qi = Fi*Ci*Ei is replaced by a binary presence
+    indicator, normalized the same Wi=Qi/sum(Qi) way.
 
-Every risk contribution and the final decision are plain functions of the raw
-signal content, so what we report here is a genuine measurement of a
-validation-free system, not something tuned to look right.
+Ablation still gets, since none of it needs enrichment:
+  - Repudiation (a flag the simulator sets directly)
+  - Posture-outdated (device_posture.patched, read raw)
+  - DoS / Elevation-of-Privilege / Credential / Infiltration (the same
+    trained Random Forest classifiers, scored on raw network_flow telemetry)
 """
 
+import os
 import time
-import json
 import random
-from typing import Dict, Any, List, Tuple
-from datetime import datetime, timedelta
+from typing import Dict, Any, Tuple
 import logging
+
+import joblib
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
+# Same trained classifiers as services/validation/app/main.py — loaded here
+# too since detection only needs raw network_flow telemetry, not enrichment.
+MODEL_DIR = os.getenv("ML_MODEL_DIR", "/app/models")
+
+def _load_model(name: str):
+    path = os.path.join(MODEL_DIR, f"{name}_classifier.joblib")
+    try:
+        bundle = joblib.load(path)
+        print(f"[ABLATION][ML] Loaded {name} classifier: {len(bundle['feature_names'])} features, threshold={bundle['threshold']}")
+        return bundle
+    except Exception as e:
+        print(f"[ABLATION][ML] Failed to load {name} classifier from {path}: {e}")
+        return None
+
+DOS_MODEL = _load_model("dos")
+EOP_MODEL = _load_model("eop")
+CREDENTIAL_MODEL = _load_model("credential")
+INFILTRATION_MODEL = _load_model("infiltration")
+
+_SIGNAL_KEYS = ("ip_geo", "gps", "wifi_bssid", "device_posture", "tls_fp")
+
+# Same severity weights as trust/app/decision_engine.py's stride_map.
+_STRIDE_MAP = {
+    'DOS': 0.30,
+    'POLICY_ELEVATION': 0.25,
+    'CREDENTIAL_ATTACK': 0.30,
+    'EXFILTRATION': 0.30,
+    'REPUDIATION': 0.18,
+    'POSTURE_OUTDATED': 0.08,
+}
+
+
+def compute_ablation_reasons(signals: Dict[str, Any]) -> Tuple[list, Dict[str, float]]:
+    """Same STRIDE-reason detection as validation/app/main.py's
+    compute_reasons(), restricted to what's computable from the raw signal alone."""
+    R: list = []
+    conf: Dict[str, float] = {}
+
+    if signals.get("repudiation") is True:
+        R.append("REPUDIATION")
+        conf["REPUDIATION"] = 1.0
+
+    dp = signals.get("device_posture") or {}
+    patched = dp.get("patched")
+    if isinstance(patched, bool) and not patched:
+        R.append("POSTURE_OUTDATED")
+        conf["POSTURE_OUTDATED"] = 1.0
+
+    exfil = signals.get("exfiltration_telemetry") or {}
+    try:
+        outbound = float(exfil.get("outbound_bytes", 0))
+        baseline = max(1.0, float(exfil.get("baseline_outbound_bytes", 0)))
+        if (exfil.get("dlp_alert") is True and exfil.get("sensitive_data_accessed") is True
+                and exfil.get("destination_is_new") is True and outbound / baseline >= 10.0):
+            R.append("EXFILTRATION")
+            conf["EXFILTRATION"] = round(min(1.0, (outbound / baseline) / 25.0), 4)
+    except (TypeError, ValueError):
+        pass
+
+    nf = signals.get("network_flow") or {}
+    if DOS_MODEL is not None and nf:
+        x = np.array([[nf.get(f, 0.0) for f in DOS_MODEL["feature_names"]]])
+        proba = float(DOS_MODEL["model"].predict_proba(x)[0, 1])
+        if proba >= DOS_MODEL["threshold"]:
+            R.append("DOS")
+            conf["DOS"] = round(proba, 4)
+
+    if EOP_MODEL is not None and nf:
+        x = np.array([[nf.get(f, 0.0) for f in EOP_MODEL["feature_names"]]])
+        proba = float(EOP_MODEL["model"].predict_proba(x)[0, 1])
+        if proba >= EOP_MODEL["threshold"]:
+            R.append("POLICY_ELEVATION")
+            conf["POLICY_ELEVATION"] = round(proba, 4)
+
+    if CREDENTIAL_MODEL is not None and nf:
+        x = np.array([[nf.get(f, 0.0) for f in CREDENTIAL_MODEL["feature_names"]]])
+        proba = float(CREDENTIAL_MODEL["model"].predict_proba(x)[0, 1])
+        if proba >= CREDENTIAL_MODEL["threshold"]:
+            R.append("CREDENTIAL_ATTACK")
+            conf["CREDENTIAL_ATTACK"] = round(proba, 4)
+
+    if INFILTRATION_MODEL is not None and nf:
+        x = np.array([[nf.get(f, 0.0) for f in INFILTRATION_MODEL["feature_names"]]])
+        proba = float(INFILTRATION_MODEL["model"].predict_proba(x)[0, 1])
+        if proba >= INFILTRATION_MODEL["threshold"]:
+            R.append("EXFILTRATION")
+            conf["EXFILTRATION"] = round(proba, 4)
+
+    return R, conf
+
+
+def compute_binary_weights(signals: Dict[str, Any]) -> Tuple[Dict[str, float], float]:
+    """Ablation's stand-in for validation's compute_weights(): Qi collapses
+    to a binary presence indicator, normalized the same Wi=Qi/sum(Qi) way.
+    H=M/n is the completeness ratio."""
+    present = [k for k in _SIGNAL_KEYS if k in signals]
+    n = len(_SIGNAL_KEYS)
+    m = len(present)
+    h = (m / n) if n else 0.0
+    if m == 0:
+        return {}, 0.0
+    w = 1.0 / m
+    return {k: w for k in present}, h
+
+
 # Config for the no-validation-layer configuration
 class BaselineThesisConfig:
-    # Lower step-up bar than the proposed framework's ALLOW_T=0.30/DENY_T=0.75
-    # — a naive system with no validation-confidence discount just takes raw
-    # risk signals at face value, so it should step up sooner.
-    MEDIUM_RISK_THRESHOLD = 0.35
-    DENY_THRESHOLD = 0.75
+    # Same policy thresholds as the full framework, so the measured
+    # difference is the validation layer, not a more permissive policy.
+    MEDIUM_RISK_THRESHOLD = float(os.getenv("ALLOW_T", "0.24"))
+    DENY_THRESHOLD = float(os.getenv("DENY_T", "0.75"))
+    # Same base gain as trust/app/decision_engine.py's TRUST_BASE_GAIN.
+    TRUST_BASE_GAIN = float(os.getenv("TRUST_BASE_GAIN", "0.03"))
 
-    # Signal weights — no validation or enrichment behind these
-    WEIGHTS = {
-        'suspicious_ip': 0.25,
-        'unknown_device': 0.20,
-        'location_anomaly': 0.18,
-        'failed_attempts': 0.15,
-        'threat_indicators': 0.22,
-        'traffic_analysis': 0.12
-    }
 
 class BaselineDecisionEngine:
-    """Processes raw signals with no validation layer — no cross-source
-    checks, no enrichment lookups, no dynamic weighting. See module docstring."""
+    """Processes the same raw signals as the proposed framework, with the
+    validation layer and its Qi=Fi*Ci*Ei quality scoring removed."""
 
     def __init__(self):
         self.config = BaselineThesisConfig()
@@ -53,107 +160,98 @@ class BaselineDecisionEngine:
         }
 
     def process_signals(self, raw_signals: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Process raw signals directly without validation or enrichment.
-        This is the key difference from the proposed framework.
-        """
+        """Process raw signals with the validation layer and quality scoring removed."""
         start_time = time.perf_counter()
 
         session_id = raw_signals.get('session_id', f'baseline-{int(time.time())}-{random.randint(1000, 9999)}')
 
-        # Raw signal extraction (no validation)
-        risk_factors = self._extract_raw_risk_factors(raw_signals)
-        base_risk_score = self._calculate_base_risk(risk_factors)
+        risk_score, risk_factors = self._calculate_risk(raw_signals)
 
-        # Apply baseline decision logic (no enrichment)
         decision_result = self._make_baseline_decision(
             session_id=session_id,
-            risk_score=base_risk_score,
+            risk_score=risk_score,
             risk_factors=risk_factors,
             raw_signals=raw_signals
         )
 
-        # Track processing time
         processing_time_ms = int((time.perf_counter() - start_time) * 1000)
         decision_result['processing_time_ms'] = processing_time_ms
 
-        # Update performance metrics
         self._update_performance_metrics(decision_result, raw_signals)
 
-        # Generate thesis-compliant response
         return self._format_thesis_response(decision_result, raw_signals)
 
-    def _extract_raw_risk_factors(self, signals: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract risk factors from raw signals without validation"""
-        factors = {}
+    def _calculate_device_posture_risk(self, device_info: Dict[str, Any], weight: float) -> float:
+        """Identical to trust/app/decision_engine.py's version — reads only
+        the raw device_posture signal, no enrichment lookup involved."""
+        if not device_info:
+            return 0.1
+        device_id = device_info.get('device_id', '')
+        patched = device_info.get('patched', True)
+        if not device_id:
+            return 0.15
+        indicator = 0.0
+        if not patched:
+            indicator += 0.6
+        if 'unknown' in device_id.lower():
+            indicator += 0.3
+        return min(0.3, indicator * weight)
 
-        # IP Analysis (raw, no geo-enrichment)
-        ip_info = signals.get('ip_geo', {})
-        if ip_info:
-            ip = ip_info.get('ip', '')
-            factors['suspicious_ip'] = self._is_suspicious_ip_simple(ip)
+    def _calculate_tls_validated_risk(self, tls_info: Dict[str, Any], weight: float) -> float:
+        """Identical to trust/app/decision_engine.py's version — reads only
+        raw ja3 presence, no reference-table lookup."""
+        if not tls_info or not tls_info.get('ja3', ''):
+            return 0.02
+        return round(max(0.0, 0.2 - weight) * 0.5, 4)
 
-        # Device Analysis (no device posture enrichment)
-        device_info = signals.get('device_posture', {})
-        factors['unknown_device'] = not self._is_known_device_simple(device_info)
+    def _calculate_stride_risk(self, reasons: list, reason_confidence: Dict[str, float], h: float) -> float:
+        """Same structure as trust/app/decision_engine.py's
+        _calculate_stride_risk, with H standing in for the Qi-derived
+        confidence multiplier."""
+        total = 0.0
+        for r in reasons:
+            w = _STRIDE_MAP.get(r)
+            if w is not None:
+                total += w * h * reason_confidence.get(r, 1.0)
+        return min(0.4, total)
 
-        # Location Analysis (raw GPS/WiFi without cross-validation)
-        gps_info = signals.get('gps', {})
-        wifi_info = signals.get('wifi_bssid', {})
-        factors['location_anomaly'] = self._detect_location_anomaly_simple(gps_info, wifi_info)
+    def _calculate_risk(self, signals: Dict[str, Any]) -> Tuple[float, Dict[str, Any]]:
+        """Ablation's analogue of _calculate_validated_risk: same additive
+        structure, binary Wi instead of quality-scored Wi, no location-risk
+        term (that's a cross-source check and needs the validation layer)."""
+        weights, h = compute_binary_weights(signals)
+        avg_weight = 1.0 / len(_SIGNAL_KEYS)
 
-        # Authentication History (basic analysis)
-        auth_info = signals.get('auth', {})
-        factors['failed_attempts'] = self._count_recent_failures_simple(auth_info)
+        device_risk = self._calculate_device_posture_risk(
+            signals.get('device_posture', {}), weights.get('device_posture', avg_weight))
+        tls_risk = self._calculate_tls_validated_risk(
+            signals.get('tls_fp', {}), weights.get('tls_fp', avg_weight))
 
-        # CIC-IDS2018 Network Traffic Analysis (direct label-based detection)
-        label = signals.get('label', 'BENIGN').upper()
-        factors['threat_indicators'] = self._detect_cic2018_threats(label)
+        reasons, reason_confidence = compute_ablation_reasons(signals)
+        stride_risk = self._calculate_stride_risk(reasons, reason_confidence, h)
 
-        # TLS Fingerprint Analysis (basic check)
-        tls_info = signals.get('tls_fp', {})
-        factors['tls_anomaly'] = self._detect_tls_anomaly_simple(tls_info)
+        risk_score = self.config.TRUST_BASE_GAIN + device_risk + tls_risk + stride_risk
+        actionable = {
+            'REPUDIATION', 'DOS', 'POLICY_ELEVATION',
+            'CREDENTIAL_ATTACK', 'EXFILTRATION',
+        }
+        if any(reason in actionable for reason in reasons):
+            risk_score = max(risk_score, self.config.MEDIUM_RISK_THRESHOLD)
+        risk_score = max(0.0, min(1.0, risk_score))
 
-        # Behavioral Analysis (simple heuristics)
-        factors['behavioral_anomaly'] = self._detect_behavioral_anomaly_simple(signals)
-
-        return factors
-
-    def _calculate_base_risk(self, risk_factors: Dict[str, Any]) -> float:
-        """Calculate risk score using baseline algorithm (no ML, simple weighted sum)"""
-        risk_score = 0.0
-
-        # Apply simple weighted scoring
-        if risk_factors.get('suspicious_ip', False):
-            risk_score += self.config.WEIGHTS['suspicious_ip']
-
-        if risk_factors.get('unknown_device', False):
-            risk_score += self.config.WEIGHTS['unknown_device']
-
-        if risk_factors.get('location_anomaly', False):
-            risk_score += self.config.WEIGHTS['location_anomaly']
-
-        failed_attempts = risk_factors.get('failed_attempts', 0)
-        if failed_attempts > 0:
-            risk_score += min(failed_attempts * 0.05, self.config.WEIGHTS['failed_attempts'])
-
-        threat_count = len(risk_factors.get('threat_indicators', []))
-        if threat_count > 0:
-            risk_score += min(threat_count * 0.1, self.config.WEIGHTS['threat_indicators'])
-
-        if risk_factors.get('behavioral_anomaly', False):
-            risk_score += 0.18
-
-        if risk_factors.get('tls_anomaly', False):
-            risk_score += 0.12
-
-        return max(0.0, min(1.0, risk_score))
+        risk_factors = {
+            "reasons": reasons,
+            "reason_confidence": reason_confidence,
+            "signals_present": sorted(weights.keys()),
+            "signals_total": len(_SIGNAL_KEYS),
+            "H": round(h, 4),
+        }
+        return risk_score, risk_factors
 
     def _make_baseline_decision(self, session_id: str, risk_score: float,
                               risk_factors: Dict[str, Any], raw_signals: Dict[str, Any]) -> Dict[str, Any]:
-        """Naive two-threshold decision, nothing fancy. predicted_threat_level
-        just mirrors `decision` (step_up/deny -> 'malicious', allow ->
-        'benign'), same as what compute_chapter4_metrics.py uses."""
+        """Naive two-threshold decision. predicted_threat_level mirrors
+        `decision` (step_up/deny -> 'malicious', allow -> 'benign')."""
 
         label = raw_signals.get('label', '').upper()
         is_benign = label == 'BENIGN'
@@ -197,84 +295,10 @@ class BaselineDecisionEngine:
             'enrichment_applied': False
         }
 
-    def _is_suspicious_ip_simple(self, ip: str) -> bool:
-        """Just format heuristics — no GeoLite2 or threat-intel lookup here."""
-        if not ip:
-            return False
-
-        suspicious_patterns = [
-            ip.startswith('10.'),  # Private IP used publicly
-            ip.startswith('192.168.'),  # Another private range
-            '.' in ip and len(ip.split('.')) != 4,  # Malformed IP
-        ]
-
-        return any(suspicious_patterns)
-
-    def _is_known_device_simple(self, device_info: Dict[str, Any]) -> bool:
-        """Trust is just "did we get a device_id" — no patched/EDR check,
-        since that needs the device-posture DB lookup validation does."""
-        if not device_info:
-            return False
-        return bool(device_info.get('device_id', ''))
-
-    def _detect_location_anomaly_simple(self, gps: Dict[str, Any], wifi: Dict[str, Any]) -> bool:
-        """No GPS-vs-WiFi cross-check here (that's validation's job), so a
-        naive system genuinely can't tell if location looks wrong — it never
-        flags one. That's the point of the ablation, not a gap to fill in."""
-        return False
-
-    def _count_recent_failures_simple(self, auth_info: Dict[str, Any]) -> int:
-        """Sessions are independent/single-shot in the simulator, so there's
-        no prior-attempt history to count."""
-        return 0
-
-    def _detect_cic2018_threats(self, label: str) -> List[str]:
-        """Detect threats from CIC-IDS2018 network traffic labels (ablation approach)"""
-        threats = []
-
-        if label == 'BENIGN':
-            return threats
-
-        # Map CIC-IDS2018 labels to threat indicators (basic mapping without enrichment)
-        threat_mapping = {
-            'FTP-BRUTEFORCE': ['BRUTE_FORCE', 'CREDENTIAL_ATTACK'],
-            'SSH-BRUTEFORCE': ['BRUTE_FORCE', 'CREDENTIAL_ATTACK'],
-            'DOS-GOLDENEYE': ['DOS_ATTACK', 'NETWORK_FLOOD'],
-            'DOS-SLOWLORIS': ['DOS_ATTACK', 'LOW_RATE_FLOOD'],
-            'BRUTE FORCE-WEB': ['WEB_EXPLOIT', 'CREDENTIAL_ATTACK'],
-            'XSS': ['WEB_EXPLOIT', 'APPLICATION_ATTACK'],
-            'SQL INJECTION': ['WEB_EXPLOIT', 'DATA_EXFIL'],
-            'INFILTERATION': ['INFILTRATION', 'LATERAL_MOVEMENT'],
-            'DOS': ['DOS_ATTACK', 'NETWORK_FLOOD'],
-            'DDOS': ['DDOS_ATTACK', 'DISTRIBUTED_FLOOD'],
-            'BRUTEFORCE': ['BRUTE_FORCE', 'CREDENTIAL_ATTACK'],
-        }
-
-        for threat_pattern, threat_list in threat_mapping.items():
-            if threat_pattern in label:
-                threats.extend(threat_list[:2])  # Add first 2 threats max
-                break
-
-        return threats
-
-    def _detect_tls_anomaly_simple(self, tls_info: Dict[str, Any]) -> bool:
-        """No threat-intel table to check the fingerprint against here (same
-        deal as _detect_location_anomaly_simple), so this never flags one."""
-        return False
-
-    def _detect_behavioral_anomaly_simple(self, signals: Dict[str, Any]) -> bool:
-        """Crude stand-in for behavioral analysis: anything non-benign counts
-        as a behavioral anomaly. Yes, that overlaps with the CIC2018
-        threat-label check above — that's fine, a naive system wouldn't
-        bother separating the two anyway."""
-        label = signals.get('label', 'BENIGN').upper()
-        return label != 'BENIGN'
-
     def _update_performance_metrics(self, decision_result: Dict[str, Any], raw_signals: Dict[str, Any]):
         """Update performance tracking for thesis metrics"""
         self.decisions_made += 1
 
-        # Update confusion matrix
         if decision_result.get('is_true_positive'):
             self.performance_tracker['tp'] += 1
         elif decision_result.get('is_false_positive'):
@@ -284,11 +308,9 @@ class BaselineDecisionEngine:
         elif decision_result.get('is_false_negative'):
             self.performance_tracker['fn'] += 1
 
-        # Track step-up challenges
         if decision_result.get('requires_stepup'):
             self.performance_tracker['stepup_challenges'] += 1
 
-        # Track processing times
         processing_time = decision_result.get('processing_time_ms', 120)
         self.performance_tracker['processing_times'].append(processing_time)
 
@@ -321,7 +343,7 @@ class BaselineDecisionEngine:
                 'risk_factors': decision_result['risk_factors'],
                 'validation_applied': False,
                 'enrichment_applied': False,
-                'signal_quality_score': None,  # Baseline doesn't have this
+                'signal_quality_score': decision_result['risk_factors'].get('H'),
             },
 
             'performance': {
@@ -336,8 +358,7 @@ class BaselineDecisionEngine:
         return response
 
     def _calculate_running_metrics(self) -> Dict[str, float]:
-        """TPR/FPR/etc from this process's real tp/fp/tn/fn tallies. Returns
-        0.0 for anything we haven't tallied any decisions for yet."""
+        """TPR/FPR/etc from this process's tp/fp/tn/fn tallies."""
         tp = self.performance_tracker['tp']
         fp = self.performance_tracker['fp']
         tn = self.performance_tracker['tn']
@@ -367,8 +388,7 @@ class BaselineDecisionEngine:
         }
 
     def get_thesis_summary(self) -> Dict[str, Any]:
-        """Summary for the live dashboard — just this process's in-memory
-        tally, not the actual reported numbers (see compute_chapter4_metrics.py)."""
+        """Summary for the live dashboard, from this process's in-memory tally."""
         metrics = self._calculate_running_metrics()
 
         return {

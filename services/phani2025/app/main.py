@@ -17,14 +17,12 @@ calibration, not transcribed from the source):
   R_t < 0.55                -> CONDITIONAL (step_up)
   otherwise (R_t >= 0.55)   -> DENY
 
-device_posture only gives us 2 real boolean checks (patched, edr) — the other
-3 of Eq.2's 5 checks have no real data source and just default to "healthy" —
-so H can never drop below 0.6. Keep that in mind: the decision logic above is
-written so DENY still triggers on a genuine load spike no matter what H says.
+device_posture only gives 2 real boolean checks (patched, edr); the other 3
+of Eq.2's 5 checks default to "healthy", so H can never drop below 0.6 — the
+decision logic is written so DENY still triggers on a load spike regardless.
 
-DENY_T=0.55 came from a real ROC sweep (scripts/compute_roc_data.py) against
-a live run, where R_t rarely got anywhere near 0.70. Worth re-checking this
-against a fresh run now and then rather than treating it as permanent.
+DENY_T=0.55 came from a ROC sweep (scripts/compute_roc_data.py) against a
+live run, where R_t rarely got near 0.70.
 """
 
 import time

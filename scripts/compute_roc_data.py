@@ -1,17 +1,10 @@
 #!/usr/bin/env python3
 """
-Compute real ROC curves and F1-vs-threshold curves for every framework (the
-proposed framework plus the two baselines with published equations) from live
-risk_score + ground-truth-label data. Replaces the previously fabricated
-Figures 3.16/3.17 (the thesis's claimed "AUC=0.94, ROC analysis yielded
-threshold=0.25" did not hold up against real data — see 3.5.6 note).
-
-Extended to Ahmadi/Phani because neither source paper publishes numeric
-threshold values (verified directly against Papers/*.pdf) — our chosen
-DENY_T/STEPUP_T for each baseline are our own calibration. Showing each
-baseline's operating point sitting at a defensible spot on its OWN measured
-ROC curve (not just the proposed framework's) answers "why these specific
-numbers" for every model in the comparison, not only ours.
+Compute ROC curves and F1-vs-threshold curves for the proposed framework and
+the two baselines with published equations, from live risk_score +
+ground-truth-label data. Neither baseline paper publishes numeric threshold
+values, so their chosen DENY_T/STEPUP_T are this study's own calibration,
+shown against each baseline's own measured ROC curve.
 
 Writes scripts/roc_data.json:
 {"<framework>": {"points": [...], "auc": ..., "chosen_thresholds": {...}}, ...}
@@ -24,23 +17,25 @@ import psycopg2.extras
 
 DSN = os.environ["DB_DSN"]  # no hardcoded fallback — set via compose/.env, never commit real credentials
 
+RUN_ID = os.environ.get("METRICS_COMPARISON_ID")
+
 # Chosen operating-point thresholds per framework, so each figure can mark
 # where the actual deployed cutoff sits on its own ROC curve.
 CHOSEN_THRESHOLDS = {
-    "proposed":   {"allow_t": 0.30, "deny_t": 0.75},
+    "proposed":   {"allow_t": 0.24, "deny_t": 0.75},
     "ahmadi2025": {"stepup_t": 0.30, "deny_t": 0.70},
     "phani2025":  {"stepup_t": 0.50, "deny_t": 0.55},
 }
 
 
-def compute_for_framework(cur, framework):
+def compute_for_framework(cur, framework, run_id):
     cur.execute("""
         SELECT sc.original_label, fc.risk_score
         FROM zta.security_classifications sc
         JOIN zta.framework_comparison fc
           ON fc.session_id = sc.session_id AND fc.framework_type = sc.framework_type
-        WHERE sc.framework_type = %s
-    """, (framework,))
+        WHERE sc.framework_type = %s AND fc.comparison_id = %s
+    """, (framework, run_id))
     rows = cur.fetchall()
 
     malicious = sorted(float(r["risk_score"]) for r in rows if (r["original_label"] or "BENIGN").upper() != "BENIGN")
@@ -51,7 +46,7 @@ def compute_for_framework(cur, framework):
         print(f"[{framework}] insufficient data, skipping")
         return None
 
-    thresholds = [round(t * 0.02, 2) for t in range(0, 51)]  # 0.00 .. 1.00
+    thresholds = [round(t / 1000.0, 3) for t in range(0, 1001)]
     points = []
     for t in thresholds:
         tp = sum(1 for s in malicious if s >= t)
@@ -64,16 +59,23 @@ def compute_for_framework(cur, framework):
         f1 = 2 * precision * tpr / max(1e-9, precision + tpr)
         points.append({"threshold": t, "tpr": round(tpr, 4), "fpr": round(fpr, 4), "f1": round(f1, 4)})
 
-    # AUC via trapezoidal rule over (fpr, tpr), traced by descending threshold —
-    # the natural monotonic order (threshold=1.0 -> origin, decreasing threshold
-    # only ever increases both fpr and tpr). Sorting by fpr directly breaks on
-    # ties from coarse sample sets and can misorder the integration path.
-    roc_sorted = sorted(points, key=lambda p: -p["threshold"])
-    auc = 0.0
-    for i in range(1, len(roc_sorted)):
-        x0, x1 = roc_sorted[i - 1]["fpr"], roc_sorted[i]["fpr"]
-        y0, y1 = roc_sorted[i - 1]["tpr"], roc_sorted[i]["tpr"]
-        auc += (x1 - x0) * (y0 + y1) / 2.0
+    # Exact rank-based AUC (Mann-Whitney interpretation), with average ranks
+    # for tied risk scores. This avoids quantization error from the plotted
+    # threshold grid and measures the probability that a random malicious
+    # session receives a higher score than a random benign session.
+    ranked = sorted([(s, 1) for s in malicious] + [(s, 0) for s in benign])
+    positive_rank_sum = 0.0
+    i = 0
+    while i < len(ranked):
+        j = i + 1
+        while j < len(ranked) and ranked[j][0] == ranked[i][0]:
+            j += 1
+        average_rank = ((i + 1) + j) / 2.0
+        positive_rank_sum += average_rank * sum(label for _, label in ranked[i:j])
+        i = j
+    auc = (
+        positive_rank_sum - len(malicious) * (len(malicious) + 1) / 2.0
+    ) / (len(malicious) * len(benign))
 
     best = max(points, key=lambda p: p["f1"])
     return {
@@ -91,9 +93,25 @@ def main():
     conn = psycopg2.connect(DSN, connect_timeout=15, cursor_factory=psycopg2.extras.RealDictCursor)
     cur = conn.cursor()
 
+    run_id = RUN_ID
+    if not run_id:
+        cur.execute("""
+            SELECT comparison_id
+            FROM zta.framework_comparison
+            WHERE framework_type = ANY(%s)
+            GROUP BY comparison_id
+            HAVING COUNT(DISTINCT framework_type) = 4
+            ORDER BY MAX(created_at) DESC
+            LIMIT 1
+        """, (["proposed", "ablation", "ahmadi2025", "phani2025"],))
+        row = cur.fetchone()
+        if not row:
+            raise RuntimeError("No complete four-framework experiment found")
+        run_id = row["comparison_id"]
+
     result = {}
     for framework in ["proposed", "ahmadi2025", "phani2025"]:
-        data = compute_for_framework(cur, framework)
+        data = compute_for_framework(cur, framework, run_id)
         if data:
             result[framework] = data
 

@@ -196,34 +196,39 @@ def _persist_gateway_decision(session_id: str, decision: str, risk: float, enfor
         except Exception as ex:
             print(f"[GATEWAY][DB] Insert failed: {ex}")
 
-    if decision.lower() in ("step_up", "deny", "allow"):
-        STRIDE_MAP = {
-            "SPOOFING": "Spoofing",
-            "TLS": "Tampering",
-            "TLS_ANOMALY": "Tampering",
-            "POSTURE": "Tampering",
-            "POSTURE_OUTDATED": "Tampering",
-            "REPUDIATION": "Repudiation",
-            "DOWNLOAD": "Information Disclosure",
-            "EXFIL": "Information Disclosure",
-            "DOS": "Denial of Service",
-            "DDOS": "Denial of Service",
-            "POLICY": "Escalation of Privilege",
-            "EOP": "Escalation of Privilege",
-        }
+    # Fixed priority order, not list position — a deliberate signal
+    # (REPUDIATION, SPOOFING, ...) always outranks an incidental one
+    # (POSTURE_OUTDATED) regardless of where it falls in `reasons`.
+    STRIDE_PRIORITY = [
+        ("REPUDIATION", "Repudiation"),
+        ("DDOS", "Denial of Service"),
+        ("DOS", "Denial of Service"),
+        ("SPOOFING", "Spoofing"),
+        ("POLICY", "Escalation of Privilege"),
+        ("EOP", "Escalation of Privilege"),
+        ("DOWNLOAD", "Information Disclosure"),
+        ("EXFIL", "Information Disclosure"),
+        ("TLS_ANOMALY", "Tampering"),
+        ("TLS", "Tampering"),
+        ("POSTURE_OUTDATED", "Tampering"),
+        ("POSTURE", "Tampering"),
+    ]
 
-        stride_value = None
-        for r in reasons:
-            for k, v in STRIDE_MAP.items():
-                if r.upper().startswith(k):
-                    stride_value = v
-                    break
-            if stride_value:
-                break
-        if not stride_value:
-            stride_value = "Spoofing"
+    reasons_upper = [str(r).upper() for r in reasons]
+    stride_value = None
+    for prefix, category in STRIDE_PRIORITY:
+        if any(r.startswith(prefix) for r in reasons_upper):
+            stride_value = category
+            break
 
-        index_to_es(session_id, enforcement, risk, decision, reasons + [stride_value], index="mfa-events")
+    # mfa-events logs every decision regardless of STRIDE relevance, but
+    # never invents a STRIDE tag for a benign/no-reason session.
+    mfa_reasons = (reasons + [stride_value]) if stride_value else reasons
+    index_to_es(session_id, enforcement, risk, decision, mfa_reasons, index="mfa-events")
+
+    # siem-alerts is alert-worthy-only, matching services/siem/app/main.py's
+    # stride_from_reasons() gating.
+    if stride_value:
         index_to_es(session_id=session_id, enforcement=enforcement, risk=risk, decision=decision,
                     reasons=[stride_value], index="siem-alerts")
 
@@ -234,7 +239,9 @@ def decision(payload: ValidateAndDecide, background_tasks: BackgroundTasks):
     vector    = validated.get("vector", {}) or {}
     weights   = {k: float(v) for k, v in (validated.get("weights") or {}).items()}
     reasons   = validated.get("reasons") or []
+    reason_confidence = {k: float(v) for k, v in (validated.get("reason_confidence") or {}).items()}
     quality_confidence = validated.get("quality_confidence")
+    checks    = validated.get("checks") or {}
 
     session_id = (
         vector.get("session_id")
@@ -258,8 +265,10 @@ def decision(payload: ValidateAndDecide, background_tasks: BackgroundTasks):
         "vector":  {**vector, "session_id": session_id},
         "weights": weights,
         "reasons": reasons,
+        "reason_confidence": reason_confidence,
         "siem":    {"high": siem_counts["high"], "medium": siem_counts["medium"]},
         "quality_confidence": quality_confidence,
+        "checks": checks,
     }
     # ---- Trust service call ----
     try:

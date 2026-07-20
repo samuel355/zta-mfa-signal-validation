@@ -61,7 +61,7 @@ def load_metrics():
 # ---------------------------------------------------------------------------
 def fig41(metrics):
     acc = metrics['security_accuracy']
-    fig, axes = plt.subplots(1, 3, figsize=(14, 5.5))
+    fig, axes = plt.subplots(1, 4, figsize=(18, 5.5))
     fig.suptitle(
         'Figure 4.1: Security Accuracy Metrics — Proposed Framework vs Ablation and Published Baselines\n'
         '(measured on live simulation data, CIC-IDS2018)',
@@ -88,12 +88,13 @@ def fig41(metrics):
     bar_panel(axes[0], [acc[fw]['tpr'] for fw in FRAMEWORKS], 'True Positive Rate (TPR)')
     bar_panel(axes[1], [acc[fw]['fpr'] for fw in FRAMEWORKS],
               'False Positive Rate (FPR)\n(lower is better)', ylim=(0, 0.55))
-    bar_panel(axes[2], [acc[fw]['f1'] for fw in FRAMEWORKS], 'F1-Score', fmt='{:.3f}')
+    bar_panel(axes[2], [acc[fw]['precision'] for fw in FRAMEWORKS], 'Precision')
+    bar_panel(axes[3], [acc[fw]['f1'] for fw in FRAMEWORKS], 'F1-Score', fmt='{:.3f}')
     n_decisions = acc[FRAMEWORKS[0]]['n']
-    axes[2].text(0.5, -0.16,
-                 f'n = {n_decisions:,} live decisions per framework. Ablation = proposed framework with the validation\n'
-                 'layer removed. Jimmy (2025) excluded — no published formula (3.4.1).',
-                 transform=axes[2].transAxes, fontsize=7, ha='center', color='grey', style='italic')
+    axes[3].text(0.5, -0.16,
+                 f'n = {n_decisions:,} paired decisions per framework from comparison run {metrics.get("comparison_id", "unknown")}.\n'
+                 'Ablation uses the same sessions and policy thresholds without validation, enrichment, or dynamic signal quality.',
+                 transform=axes[3].transAxes, fontsize=7, ha='center', color='grey', style='italic')
 
     plt.tight_layout()
     out = f'{OUTPUT_DIR}/Figure_4.1_Security_Accuracy_Metrics.png'
@@ -109,9 +110,14 @@ def fig42(metrics):
     lat = metrics['latency']
     net = metrics['network_conditions']
 
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 5.5))
+    if net:
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 5.5))
+        title = 'Figure 4.2: Performance — Decision Latency Distribution and Network Condition Sensitivity'
+    else:
+        fig, ax1 = plt.subplots(1, 1, figsize=(9, 5.5))
+        title = 'Figure 4.2: Performance — End-to-End Decision Latency Distribution'
     fig.suptitle(
-        'Figure 4.2: Performance — Decision Latency Distribution and Network Condition Sensitivity',
+        title,
         fontsize=12, fontweight='bold', y=1.03
     )
 
@@ -136,6 +142,17 @@ def fig42(metrics):
     ax1.legend(fontsize=8, frameon=False, loc='upper left')
     ax1.text(0.5, -0.15, 'Proposed chains validation→gateway→trust (3 services);\nbaselines are single-hop.',
               transform=ax1.transAxes, fontsize=7, ha='center', color='grey', style='italic')
+
+    if not net:
+        ax1.text(0.5, -0.24,
+                 'Network-condition results are omitted because they were not measured in this comparison run.',
+                 transform=ax1.transAxes, fontsize=7.5, ha='center', color='grey', style='italic')
+        plt.tight_layout()
+        out = f'{OUTPUT_DIR}/Figure_4.2_Performance_Latency_Network_Conditions.png'
+        plt.savefig(out, dpi=300, bbox_inches='tight', facecolor='white')
+        plt.close()
+        print(f'Saved {out}')
+        return
 
     # --- Panel 2: network condition latency (proposed framework only) ---
     conditions = ['normal', 'constrained', 'degraded']
@@ -177,12 +194,12 @@ def fig42(metrics):
 # Figure 4.3 — Usability: step-up rate and what it costs vs what it catches
 # ---------------------------------------------------------------------------
 def fig43(metrics):
-    dec = metrics['decisions']
     acc = metrics['security_accuracy']
+    usability = metrics['usability_benign_only']
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5.5))
     fig.suptitle(
-        'Figure 4.3: Usability — Step-up Challenge Rate vs Detection Justification',
+        'Figure 4.3: Benign-Session Friction vs Detection Trade-off',
         fontsize=12, fontweight='bold', y=1.03
     )
 
@@ -190,19 +207,20 @@ def fig43(metrics):
     colors = [COLORS[fw] for fw in FRAMEWORKS]
     x = np.arange(len(FRAMEWORKS))
 
-    # --- Left: step-up challenge rate per framework ---
-    stepup = [dec[fw]['step_up_rate_pct'] for fw in FRAMEWORKS]
-    bars = ax1.bar(x, stepup, width=0.55, color=colors, edgecolor='white', linewidth=0.8)
-    ax1.set_ylabel('Step-up Challenge Rate (%)', fontsize=9)
-    ax1.set_title('Step-up Challenge Rate', fontsize=11, pad=8)
+    # --- Left: friction is measured only on benign sessions. ---
+    friction = [usability[fw]['any_friction_rate_pct'] for fw in FRAMEWORKS]
+    bars = ax1.bar(x, friction, width=0.55, color=colors, edgecolor='white', linewidth=0.8)
+    ax1.set_ylabel('Benign Sessions Challenged or Denied (%)', fontsize=9)
+    ax1.set_title('Benign-Session Friction Rate', fontsize=11, pad=8)
     ax1.set_xticks(x); ax1.set_xticklabels(labels, fontsize=8.5)
-    ax1.set_ylim(0, max(stepup) * 1.2)
-    for bar, val in zip(bars, stepup):
-        ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1,
+    ymax = max(friction) * 1.25 if max(friction) else 1
+    ax1.set_ylim(0, ymax)
+    for bar, val in zip(bars, friction):
+        ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + ymax * 0.02,
                   f'{val:.1f}%', ha='center', va='bottom', fontsize=9, fontweight='bold')
     ax1.text(0.5, -0.16,
-              'A higher rate is not automatically worse — see right panel:\n'
-              'proposed challenges more sessions, but every challenge is justified.',
+              f'Usability denominator: {usability[FRAMEWORKS[0]]["n_benign"]} benign sessions.\n'
+              'Attack-session challenges are excluded from the friction measure.',
               transform=ax1.transAxes, fontsize=7.5, ha='center', color='grey', style='italic')
 
     # --- Right: TPR (threats caught) vs FPR (false alarms) — shows whether a
@@ -215,7 +233,7 @@ def fig43(metrics):
     ax2.set_ylim(0, 1.05)
     ax2.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1, decimals=0))
     ax2.set_ylabel('Rate', fontsize=9)
-    ax2.set_title('Step-ups Justified: TPR vs FPR', fontsize=11, pad=8)
+    ax2.set_title('Detection Benefit vs False-Alarm Cost', fontsize=11, pad=8)
     ax2.set_xticks(x); ax2.set_xticklabels(labels, fontsize=8.5)
     for xi, t, fp in zip(x, tpr_vals, fpr_vals):
         ax2.text(xi - w2/2, t + 0.02, f'{t:.0%}', ha='center', fontsize=8, fontweight='bold')
@@ -320,9 +338,8 @@ def fig45(metrics):
     ax.legend(fontsize=8.5, frameon=False, loc='upper right', ncol=2)
 
     ax.text(0.5, -0.14,
-            'Baselines cluster detection almost entirely in Spoofing (the one category their published\n'
-            'equations can observe via GPS/device signals) — network-layer categories (DoS, Tampering, EoP,\n'
-            'Information Disclosure) fall outside either baseline\'s signal scope by construction.',
+            'The proposed framework leads on Tampering and matches ablation on DoS; Ahmadi leads on Spoofing,\n'
+            'while ablation leads on Repudiation and EoP. Information Disclosure remains a measured detection gap.',
             transform=ax.transAxes, fontsize=7.5, ha='center', color='grey', style='italic')
 
     plt.tight_layout()

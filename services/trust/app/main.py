@@ -57,8 +57,10 @@ class ScorePayload(BaseModel):
     vector: Dict[str, Any]
     weights: Dict[str, float]
     reasons: list[str] = []
+    reason_confidence: Dict[str, float] = {}
     siem: Dict[str, int] = {}
     quality_confidence: Optional[float] = None
+    checks: Dict[str, Any] = {}
 
 @api.on_event("startup")
 def _startup():
@@ -102,8 +104,10 @@ def score(payload: ScorePayload, background_tasks: BackgroundTasks):
         'vector': payload.vector,
         'weights': payload.weights or {},
         'reasons': payload.reasons or [],
+        'reason_confidence': payload.reason_confidence or {},
         'siem': payload.siem or {"high": 0, "medium": 0},
         'quality_confidence': payload.quality_confidence,
+        'checks': payload.checks or {},
     }
 
     # Use the thesis-compliant proposed engine
@@ -146,6 +150,7 @@ def score(payload: ScorePayload, background_tasks: BackgroundTasks):
     # --- Persist decision (async, off the decision-latency critical path) ---
     background_tasks.add_task(_persist_trust_decision, session_id, risk, decision, {
         "reasons": reasons,
+        "reason_confidence": payload.reason_confidence or {},
         "weights": weights,
         "siem_bump": siem,
         "stride": stride_components,
