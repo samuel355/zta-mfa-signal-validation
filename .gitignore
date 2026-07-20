@@ -150,6 +150,20 @@ datasets/
 updated/*.docx
 updated/*.pptx
 
+# One-off thesis/manuscript document-assembly and text-correction scripts —
+# personal tooling for building the .docx/.pptx above, not part of the
+# reproducible pipeline (validation/trust/etc. and the compute_*/generate_*
+# scripts that produce the figures and metrics tables stay tracked).
+build_corrected_thesis.py
+build_defense_slides.py
+build_full_thesis.py
+build_manuscript_docx.py
+finalize_actual_thesis.py
+scripts/apply_thesis_corrections*.py
+scripts/apply_thesis_table_corrections.py
+scripts/update_manuscript_numbers.py
+updated/reference_material/master_correction_map.md
+
 
 # Documentation build
 docs/_build/
