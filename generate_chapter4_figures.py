@@ -128,17 +128,20 @@ def fig42(metrics):
     x = np.arange(len(FRAMEWORKS))
     medians = [lat[fw]['median_ms'] for fw in FRAMEWORKS]
     p95s = [lat[fw]['p95_ms'] for fw in FRAMEWORKS]
+    p99s = [lat[fw]['p99_ms'] for fw in FRAMEWORKS]
 
-    w = 0.35
-    ax1.bar(x - w/2, medians, width=w, color=colors, alpha=1.0, edgecolor='white', linewidth=0.8, label='Median')
-    ax1.bar(x + w/2, p95s, width=w, color=colors, alpha=0.45, edgecolor='white', linewidth=0.8, label='p95')
+    w = 0.26
+    ax1.bar(x - w, medians, width=w, color=colors, alpha=1.0, edgecolor='white', linewidth=0.8, label='Median')
+    ax1.bar(x, p95s, width=w, color=colors, alpha=0.6, edgecolor='white', linewidth=0.8, label='p95')
+    ax1.bar(x + w, p99s, width=w, color=colors, alpha=0.3, edgecolor='white', linewidth=0.8, label='p99')
     ax1.set_yscale('log')
     ax1.set_ylabel('Latency (ms, log scale)', fontsize=9)
-    ax1.set_title('Decision Latency: Median vs p95', fontsize=11, pad=8)
+    ax1.set_title('Decision Latency: Median vs p95 vs p99', fontsize=11, pad=8)
     ax1.set_xticks(x); ax1.set_xticklabels(labels, fontsize=8)
-    for xi, mm, p in zip(x, medians, p95s):
-        ax1.text(xi - w/2, mm * 1.15, f'{mm:.0f}', ha='center', fontsize=7.5, fontweight='bold')
-        ax1.text(xi + w/2, p * 1.15, f'{p:.0f}', ha='center', fontsize=7.5, fontweight='bold')
+    for xi, mm, p95, p99 in zip(x, medians, p95s, p99s):
+        ax1.text(xi - w, mm * 1.15, f'{mm:.0f}', ha='center', fontsize=6.5, fontweight='bold')
+        ax1.text(xi, p95 * 1.15, f'{p95:.0f}', ha='center', fontsize=6.5, fontweight='bold')
+        ax1.text(xi + w, p99 * 1.15, f'{p99:.0f}', ha='center', fontsize=6.5, fontweight='bold')
     ax1.legend(fontsize=8, frameon=False, loc='upper left')
     ax1.text(0.5, -0.15, 'Proposed chains validation→gateway→trust (3 services);\nbaselines are single-hop.',
               transform=ax1.transAxes, fontsize=7, ha='center', color='grey', style='italic')
@@ -338,8 +341,9 @@ def fig45(metrics):
     ax.legend(fontsize=8.5, frameon=False, loc='upper right', ncol=2)
 
     ax.text(0.5, -0.14,
-            'The proposed framework leads on Tampering and matches ablation on DoS; Ahmadi leads on Spoofing,\n'
-            'while ablation leads on Repudiation and EoP. Information Disclosure remains a measured detection gap.',
+            'The proposed framework leads or ties on every category: it matches ablation exactly on the four classifier-driven\n'
+            'categories (Repudiation, Info. Disclosure, DoS, EoP) and leads alone on Spoofing and Tampering, the two categories\n'
+            'that require the enrichment layer. Information Disclosure’s 100% figure reflects a synthetic evaluation scenario.',
             transform=ax.transAxes, fontsize=7.5, ha='center', color='grey', style='italic')
 
     plt.tight_layout()

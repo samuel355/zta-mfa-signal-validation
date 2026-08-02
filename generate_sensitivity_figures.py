@@ -130,7 +130,7 @@ def fig_missing_signal_penalty(sweep):
     _plot_param(
         sweep, 'MISSING_SIGNAL_PENALTY', 0.3,
         xlabel='MISSING_SIGNAL_PENALTY (completeness discount per absent signal type)',
-        title='Figure 3.12 — Missing-Signal Penalty Sensitivity (no measurable effect)',
+        title='Figure 3.12 — Missing-Signal Penalty Sensitivity\n(no measurable effect)',
         fname='Figure_3.12_Missing_Signal_Penalty.png',
     )
 

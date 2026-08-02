@@ -23,6 +23,7 @@ RUN_ID = os.environ.get("METRICS_COMPARISON_ID")
 # where the actual deployed cutoff sits on its own ROC curve.
 CHOSEN_THRESHOLDS = {
     "proposed":   {"allow_t": 0.24, "deny_t": 0.75},
+    "ablation":   {"allow_t": 0.24, "deny_t": 0.75},
     "ahmadi2025": {"stepup_t": 0.30, "deny_t": 0.70},
     "phani2025":  {"stepup_t": 0.50, "deny_t": 0.55},
 }
@@ -110,7 +111,7 @@ def main():
         run_id = row["comparison_id"]
 
     result = {}
-    for framework in ["proposed", "ahmadi2025", "phani2025"]:
+    for framework in ["proposed", "ablation", "ahmadi2025", "phani2025"]:
         data = compute_for_framework(cur, framework, run_id)
         if data:
             result[framework] = data
