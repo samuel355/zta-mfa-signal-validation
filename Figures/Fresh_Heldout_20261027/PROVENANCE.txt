@@ -1,0 +1,18 @@
+Fresh held-out figure pack — 2026-10-27 run
+================================================
+Reporting metrics, score distributions, policy decisions, cue sensitivity,
+STRIDE groups, comparator visibility and latency use:
+  results/freshheldout-report-20261027/heldout-summary-validated.json
+  results/freshheldout-report-20261027/reporting-outcomes.jsonl
+  results/freshheldout-report-20261027/paired-and-coverage-summary.json
+  results/freshheldout-cue-20261027/cue-degraded-outcomes.jsonl
+Held-out ROC curves use reporting scores; annotated operating thresholds were
+frozen using the 1,200-case calibration partition in:
+  results/freshheldout-data/thresholds-shared.json
+AUCs are independently checked against heldout-summary-validated.json.
+The three architecture/process diagrams are unchanged copies from Figures/.
+No updated CPU, memory, throughput, or parameter-sweep measurements were
+available for this held-out run; those older-cohort plots are intentionally
+not copied into this fresh-evaluation pack.
+Cue-field ablations are simulator-input sensitivity analyses, not realistic
+attack counterfactuals. Comparator outcomes are local implementations only.
